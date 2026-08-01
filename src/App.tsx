@@ -2,8 +2,9 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { registerSW } from 'virtual:pwa-register'
 import { localDateString } from './calculations'
 import { clearAllData, deleteFood, loadAll, replaceAllData, saveFood, saveLog, saveSettings } from './db'
-import { defaultSettings, emptyLog } from './defaults'
-import type { ChallengeSettings, CustomFood, DailyLog } from './types'
+import { defaultSettings, emptyLog, migrateLog, migrateSettings } from './defaults'
+import { applyLogPatch } from './logUpdates'
+import type { ChallengeSettings, CustomFood, DailyLog, RecordStage } from './types'
 import { Onboarding } from './components/Onboarding'
 import { TodayPage } from './pages/TodayPage'
 import { RecordPage } from './pages/RecordPage'
@@ -22,6 +23,7 @@ export default function App() {
   const [foods, setFoods] = useState<CustomFood[]>([])
   const [tab, setTab] = useState<Tab>('today')
   const [selectedDate, setSelectedDate] = useState(today)
+  const [recordStage, setRecordStage] = useState<RecordStage>('morning')
   const [online, setOnline] = useState(navigator.onLine)
   const [installHint, setInstallHint] = useState(() => localStorage.getItem('80kg-install-hint-dismissed') !== '1')
   const [updateReady, setUpdateReady] = useState(false)
@@ -49,7 +51,7 @@ export default function App() {
     const sequence = ++saveSequence.current
     setRecordSaveState('saving')
     const original = logsRef.current.find((log) => log.date === date) ?? emptyLog(date)
-    const next = { ...original, ...patch, id: date, date, updatedAt: new Date().toISOString() }
+    const next = applyLogPatch(original, patch)
     const nextLogs = [...logsRef.current.filter((item) => item.id !== date), next].sort((a, b) => a.date.localeCompare(b.date))
     logsRef.current = nextLogs
     setLogs(nextLogs)
@@ -62,7 +64,7 @@ export default function App() {
   const updateSettings = (next: ChallengeSettings) => { setSettings(next); void saveSettings(next) }
   const addFood = (food: CustomFood) => { setFoods((items) => [...items.filter((item) => item.id !== food.id), food]); void saveFood(food) }
   const removeFood = (id: string) => { setFoods((items) => items.filter((item) => item.id !== id)); void deleteFood(id) }
-  const importData = async (nextSettings: ChallengeSettings, nextLogs: DailyLog[], nextFoods: CustomFood[]) => { await replaceAllData(nextSettings, nextLogs, nextFoods); logsRef.current = nextLogs; setSettings(nextSettings); setLogs(nextLogs); setFoods(nextFoods) }
+  const importData = async (nextSettings: ChallengeSettings, nextLogs: DailyLog[], nextFoods: CustomFood[]) => { const migratedSettings = migrateSettings(nextSettings); const migratedLogs = nextLogs.map(migrateLog); await replaceAllData(migratedSettings, migratedLogs, nextFoods); logsRef.current = migratedLogs; setSettings(migratedSettings); setLogs(migratedLogs); setFoods(nextFoods) }
   const clearData = async () => { await clearAllData(); logsRef.current = []; setSettings(defaultSettings); setLogs([]); setFoods([]); setTab('today') }
 
   if (!loaded) return <div className="loading"><div className="pulse">80</div><p>載入你的計畫…</p></div>
@@ -73,8 +75,8 @@ export default function App() {
     {updateReady && <button className="update-banner" onClick={() => void applyUpdate?.(true)}>有新版本，點此更新</button>}
     {installHint && <div className="install-hint"><span>在 iPhone Safari 按分享，再選擇「加入主畫面」。</span><button aria-label="關閉安裝提示" onClick={() => { localStorage.setItem('80kg-install-hint-dismissed', '1'); setInstallHint(false) }}>×</button></div>}
     <main>
-      {tab === 'today' && <TodayPage today={today} log={todayLog} logs={logs} settings={settings} onQuickAdd={(patch) => updateLog(today, patch)} onOpenRecord={() => { setSelectedDate(today); setTab('record') }} />}
-      {tab === 'record' && <RecordPage date={selectedDate} log={currentLog} foods={foods} saveState={recordSaveState} onDate={setSelectedDate} onChange={(patch) => updateLog(selectedDate, patch)} onSaveFood={addFood} onDeleteFood={removeFood} onDone={() => setTab('today')} />}
+      {tab === 'today' && <TodayPage today={today} log={todayLog} logs={logs} settings={settings} onQuickAdd={(patch) => updateLog(today, patch)} onOpenRecord={(stage) => { setRecordStage(stage); setSelectedDate(today); setTab('record') }} />}
+      {tab === 'record' && <RecordPage date={selectedDate} log={currentLog} foods={foods} settings={settings} initialStage={recordStage} saveState={recordSaveState} onDate={setSelectedDate} onChange={(patch) => updateLog(selectedDate, patch)} onSaveFood={addFood} onDeleteFood={removeFood} onDone={() => setTab('today')} />}
       {tab === 'trends' && <Suspense fallback={<div className="loading-inline">載入趨勢圖表…</div>}><TrendsPage logs={logs} settings={settings} /></Suspense>}
       {tab === 'settings' && <SettingsPage today={today} settings={settings} logs={logs} foods={foods} onSettings={updateSettings} onImport={importData} onClear={clearData} />}
     </main>

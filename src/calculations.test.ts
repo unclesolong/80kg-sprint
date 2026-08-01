@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activityTotals, cumulativeDeficit, dailyDeficit, effectiveActiveKcal, estimatedTDEE, fatEquivalentKg, linearRegressionProjection, mealTotals, movingAverage, sleepDurationHours, targetWeightForDate } from './calculations'
+import { activityTotals, cumulativeDeficit, dailyDeficit, effectiveActiveKcal, estimatedTDEE, fatEquivalentKg, finalizedDeficit, linearRegressionProjection, mealTotals, movingAverage, shouldShowSevenDayAverage, sleepDurationHours, targetWeightForDate, targetWeightRangeForDate, weightTrendStatus } from './calculations'
 import { defaultMealDetails, defaultSettings, emptyLog } from './defaults'
 
 describe('能量計算', () => {
@@ -95,6 +95,30 @@ describe('體重趨勢', () => {
       { date: '2026-08-03', weight: 80.8 }
     ], '2026-08-08')
     expect(result).toBeCloseTo(79.8, 5)
+  })
+
+  it('目標使用正負 0.3 kg 區間', () => {
+    const range = targetWeightRangeForDate('2026-08-01', defaultSettings)
+    expect(range.lower).toBeCloseTo(80.8)
+    expect(range.upper).toBeCloseTo(81.4)
+  })
+
+  it('少於 7 筆不顯示 7 日平均', () => {
+    expect(shouldShowSevenDayAverage(6)).toBe(false)
+    expect(shouldShowSevenDayAverage(7)).toBe(true)
+  })
+
+  it('少於 3 筆晨間體重時只顯示資料累積中', () => {
+    const result = weightTrendStatus([{ ...emptyLog('2026-08-01'), weightKg: 81.1 }], '2026-08-01', defaultSettings)
+    expect(result.status).toBe('collecting')
+  })
+})
+
+describe('晚間結算', () => {
+  it('尚未結算不提供最終赤字', () => {
+    const log = { ...emptyLog('2026-08-01'), restingKcal: 1800, activeKcal: 600, intakeKcal: 1800 }
+    expect(finalizedDeficit(log)).toBeUndefined()
+    expect(finalizedDeficit({ ...log, dayFinalized: true })).toBe(600)
   })
 })
 

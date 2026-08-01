@@ -1,10 +1,11 @@
 export type WeightCondition = 'morning_fasted' | 'other'
-export type BowelMovement = 'none' | 'yes'
+export type BowelMovement = 'unrecorded' | 'none' | 'yes'
 export type SaltLevel = 'normal' | 'high'
 export type ThemeMode = 'dark' | 'light'
 export type WorkoutType = 'walk' | 'slow_jog' | 'run' | 'strength' | 'cycling' | 'other'
 export type WorkoutSource = 'apple_watch' | 'manual'
 export type WorkoutActivityKcalMode = 'included_in_daily_total' | 'add_to_daily_total'
+export type RecordStage = 'morning' | 'food' | 'evening'
 
 export interface MealLine {
   key: string
@@ -74,6 +75,7 @@ export interface DailyLog {
   /** The latest Apple Watch or manually copied daily activity snapshot. */
   activeKcal?: number
   activityUpdatedAt?: string
+  foodUpdatedAt?: string
   restingKcal?: number
   exerciseMinutes?: number
   slowJogMinutes?: number
@@ -98,6 +100,8 @@ export interface DailyLog {
   sleepQuality?: 1 | 2 | 3 | 4 | 5
   hungerLevel?: 1 | 2 | 3 | 4 | 5
   fatigueLevel?: 1 | 2 | 3 | 4 | 5
+  lowerLegTightness?: 0 | 1 | 2 | 3 | 4 | 5
+  painNotes?: string
   bowelMovement?: BowelMovement
   bristolType?: 1 | 2 | 3 | 4 | 5 | 6 | 7
   highSaltMeal?: boolean
@@ -110,6 +114,9 @@ export interface DailyLog {
   notes?: string
   mealMode?: 'quick' | 'detailed'
   mealDetails?: MealDetails
+  dayFinalized?: boolean
+  finalizedAt?: string
+  needsRefinalization?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -134,8 +141,23 @@ export interface ChallengeSettings {
   stepsMaximum: number
   exerciseMinutesMinimum: number
   exerciseMinutesMaximum: number
+  foodTemplates?: FoodTemplate[]
   theme: ThemeMode
   onboarded: boolean
+}
+
+export interface FoodTemplate {
+  id: string
+  name: string
+  description: string
+  meal: 'breakfast' | 'lunch' | 'dinner' | 'evening'
+  quick?: boolean
+  kcal: number
+  proteinG: number
+  carbsG: number
+  fatG: number
+  fiberG: number
+  sodiumMg: number
 }
 
 export interface CustomFood {

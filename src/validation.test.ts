@@ -20,4 +20,18 @@ describe('JSON 匯入驗證', () => {
     expect(validateBackup(makeBackup(defaultSettings, [{ ...base, workouts: [{ ...workout, activityKcalMode: 'add_to_daily_total' }] }], []))).toBe(true)
     expect(validateBackup(makeBackup(defaultSettings, [{ ...base, workouts: [{ ...workout, activityKcalMode: 'invalid' as never }] }], []))).toBe(false)
   })
+
+  it('接受缺少 V02 欄位的舊備份', () => {
+    const legacySettings = { ...defaultSettings } as Record<string, unknown>
+    delete legacySettings.foodTemplates
+    const legacyLog = { ...emptyLog('2026-08-01') } as Record<string, unknown>
+    delete legacyLog.dayFinalized
+    delete legacyLog.lowerLegTightness
+    expect(validateBackup(makeBackup(legacySettings as unknown as typeof defaultSettings, [legacyLog as unknown as ReturnType<typeof emptyLog>], []))).toBe(true)
+  })
+
+  it('拒絕不合法的疼痛分數與日結時間', () => {
+    expect(validateBackup(makeBackup(defaultSettings, [{ ...emptyLog('2026-08-01'), lowerLegTightness: 6 as never }], []))).toBe(false)
+    expect(validateBackup(makeBackup(defaultSettings, [{ ...emptyLog('2026-08-01'), finalizedAt: 'not-a-time' }], []))).toBe(false)
+  })
 })

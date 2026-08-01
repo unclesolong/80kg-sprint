@@ -61,4 +61,16 @@ describe('buildReportSummary', () => {
 
     expect(summary.averageActiveKcal).toBe(771)
   })
+
+  it('computes deficit only from finalized days', () => {
+    const settings = { ...defaultSettings, startDate: '2026-08-01', finalWeighInDate: '2026-08-02' }
+    const summary = buildReportSummary(settings, [
+      log('2026-08-01', { activeKcal: 600, restingKcal: 1600, intakeKcal: 1700, dayFinalized: true }),
+      log('2026-08-02', { activeKcal: 900, restingKcal: 1600, intakeKcal: 1000 })
+    ], '2026-08-02')
+
+    expect(summary.finalizedDays).toBe(1)
+    expect(summary.averageFinalDeficitKcal).toBe(500)
+    expect(summary.cumulativeFinalDeficitKcal).toBe(500)
+  })
 })

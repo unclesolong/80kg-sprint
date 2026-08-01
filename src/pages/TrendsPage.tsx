@@ -1,5 +1,5 @@
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { achievementRate, average, cumulativeDeficit, dailyDeficit, effectiveActiveKcal, estimatedTDEE, fatEquivalentKg, linearRegressionProjection, movingAverage, targetWeightForDate } from '../calculations'
+import { Area, Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { average, dailyDeficit, effectiveActiveKcal, estimatedTDEE, finalizedCumulativeDeficit, linearRegressionProjection, movingAverage, shouldShowSevenDayAverage, targetWeightForDate, targetWeightRangeForDate, weightTrendStatus } from '../calculations'
 import type { ChallengeSettings, DailyLog } from '../types'
 
 const tipStyle = { background: '#171c19', border: '1px solid #343b37', borderRadius: 12, color: '#f5f7f5' }
@@ -9,6 +9,7 @@ const Summary = ({ label, value, note }: { label: string; value: string; note?: 
 export function TrendsPage({ logs, settings }: { logs: DailyLog[]; settings: ChallengeSettings }) {
   const ordered = [...logs].filter((log) => log.date >= settings.startDate && log.date <= settings.finalWeighInDate).sort((a, b) => a.date.localeCompare(b.date))
   const morning = ordered.filter((log) => log.weightCondition === 'morning_fasted' && log.weightKg != null)
+  const finalized = ordered.filter((log) => log.dayFinalized)
   const ma3 = movingAverage(morning.map((log) => log.weightKg), 3)
   const ma7 = movingAverage(morning.map((log) => log.weightKg), 7)
   const morningByDate = new Map(morning.map((log, index) => [log.date, { ma3: ma3[index], ma7: ma7[index] }]))
@@ -16,47 +17,45 @@ export function TrendsPage({ logs, settings }: { logs: DailyLog[]; settings: Cha
     date: log.date.slice(5).replace('-', '/'), fullDate: log.date,
     morning: log.weightCondition === 'morning_fasted' ? log.weightKg : undefined,
     other: log.weightCondition === 'other' ? log.weightKg : undefined,
-    ma3: morningByDate.get(log.date)?.ma3, ma7: morningByDate.get(log.date)?.ma7,
-    target: targetWeightForDate(log.date, settings), targetFinal: settings.targetWeightKg,
-    intake: log.intakeKcal, tdee: estimatedTDEE(log), deficit: dailyDeficit(log),
+    ma3: morningByDate.get(log.date)?.ma3,
+    ma7: shouldShowSevenDayAverage(morning.length) ? morningByDate.get(log.date)?.ma7 : undefined,
+    target: targetWeightForDate(log.date, settings), targetRange: (() => { const range = targetWeightRangeForDate(log.date, settings); return [range.lower, range.upper] })(),
+    intake: log.intakeKcal, tdee: log.dayFinalized ? estimatedTDEE(log) : undefined,
+    deficit: log.dayFinalized ? dailyDeficit(log) : undefined,
     active: effectiveActiveKcal(log), exercise: log.exerciseMinutes, steps: log.steps,
-    sleep: log.sleepHours, fatigue: log.fatigueLevel, hunger: log.hungerLevel
+    sleep: log.sleepHours, fatigue: log.fatigueLevel, hunger: log.hungerLevel, leg: log.lowerLegTightness
   }))
-  const cumulative = cumulativeDeficit(ordered, settings)
+  const statusDate = morning.at(-1)?.date ?? settings.startDate
+  const status = weightTrendStatus(morning, statusDate, settings).status
+  const trend = ma3.at(-1)
+  const target = morning.length ? targetWeightForDate(morning.at(-1)!.date, settings) : undefined
   const prediction = linearRegressionProjection(morning.map((log) => ({ date: log.date, weight: log.weightKg! })), settings.finalWeighInDate)
-  const actualChange = morning.length ? morning.at(-1)!.weightKg! - settings.baselineWeightKg : undefined
-  const achieved = ordered.filter((log) => achievementRate(log, settings) >= 80).length
+  const cumulative = finalizedCumulativeDeficit(ordered, settings)
   const format = (value: number | undefined, unit: string) => value == null ? '—' : `${Math.round(value * 10) / 10} ${unit}`
+  const statusText = status === 'collecting' ? '蒐集基準中' : status === 'on_track' ? '在目標區間' : status === 'possible' ? '仍可調整' : '落後目標曲線'
 
   return <section className="page trends-page">
-    <header className="page-header"><div><p className="eyebrow">趨勢，不是判決</p><h1>7 日分析</h1></div></header>
-    {prediction == null ? <div className="prediction panel"><span>最終日預測</span><strong>需要至少 3 筆晨間體重</strong><p>其他時間量測只以空心點顯示，不納入主要趨勢。</p></div> : <div className="prediction panel"><span>最終日預測</span><strong>{prediction.toFixed(1)} kg <small>±0.5 kg</small></strong><p>水分波動區間；這是簡單線性回歸預測，不是保證。</p></div>}
+    <header className="page-header"><div><p className="eyebrow">看方向，不被單日數字牽動</p><h1>7 日趨勢</h1></div></header>
 
-    {data.length === 0 ? <div className="empty-state panel"><strong>還沒有趨勢資料</strong><p>從「紀錄」加入第一筆資料後，圖表會出現在這裡。</p></div> : <div className="chart-stack">
-      <ChartCard title="體重趨勢" note="晨間體重、3/7 日移動平均與目標線">
-        <ResponsiveContainer width="100%" height="100%"><ComposedChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" /><XAxis dataKey="date" tick={{ fill: 'var(--muted)', fontSize: 11 }} /><YAxis domain={['dataMin - 0.5', 'dataMax + 0.5']} tick={{ fill: 'var(--muted)', fontSize: 11 }} /><Tooltip contentStyle={tipStyle} /><Legend /><Line name="晨間體重" dataKey="morning" stroke="#f4f7f4" strokeWidth={2} connectNulls /><Line name="其他時間（空心）" dataKey="other" stroke="#9ba59e" strokeDasharray="2 4" dot={{ fill: 'var(--card)', stroke: '#9ba59e', strokeWidth: 2, r: 4 }} /><Line name="3日平均" dataKey="ma3" stroke="#65d38e" strokeWidth={3} connectNulls dot={false} /><Line name="7日平均" dataKey="ma7" stroke="#6db7ff" strokeWidth={2} connectNulls dot={false} /><Line name="目標曲線" dataKey="target" stroke="#f0bf63" strokeDasharray="5 4" dot={false} /><Line name={`${settings.targetWeightKg} kg`} dataKey="targetFinal" stroke="#ef6d74" strokeDasharray="2 4" dot={false} /></ComposedChart></ResponsiveContainer>
-      </ChartCard>
-      <ChartCard title="能量收支" note="Apple Watch 消耗與每日赤字皆為估算">
-        <ResponsiveContainer width="100%" height="100%"><ComposedChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" /><XAxis dataKey="date" tick={{ fill: 'var(--muted)', fontSize: 11 }} /><YAxis tick={{ fill: 'var(--muted)', fontSize: 11 }} /><Tooltip contentStyle={tipStyle} /><Legend /><Bar name="攝取" dataKey="intake" fill="#f0bf63" radius={[5, 5, 0, 0]} /><Line name="推估消耗" dataKey="tdee" stroke="#6db7ff" strokeWidth={2} /><Line name="推估赤字" dataKey="deficit" stroke="#65d38e" strokeWidth={2} /></ComposedChart></ResponsiveContainer>
-      </ChartCard>
-      <ChartCard title="活動" note="活動能量、運動分鐘與步數">
-        <ResponsiveContainer width="100%" height="100%"><BarChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" /><XAxis dataKey="date" tick={{ fill: 'var(--muted)', fontSize: 11 }} /><YAxis tick={{ fill: 'var(--muted)', fontSize: 11 }} /><Tooltip contentStyle={tipStyle} /><Legend /><Bar name="活動 kcal" dataKey="active" fill="#65d38e" radius={[4, 4, 0, 0]} /><Bar name="運動分" dataKey="exercise" fill="#6db7ff" radius={[4, 4, 0, 0]} /><Line name="步數" dataKey="steps" stroke="#d594f5" /></BarChart></ResponsiveContainer>
-      </ChartCard>
-      <ChartCard title="恢復與感受" note="前一晚睡眠、疲勞與飢餓（1–5）">
-        <ResponsiveContainer width="100%" height="100%"><AreaChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" /><XAxis dataKey="date" tick={{ fill: 'var(--muted)', fontSize: 11 }} /><YAxis tick={{ fill: 'var(--muted)', fontSize: 11 }} /><Tooltip contentStyle={tipStyle} /><Legend /><Area name="睡眠小時" dataKey="sleep" stroke="#6db7ff" fill="#6db7ff33" /><Line name="疲勞" dataKey="fatigue" stroke="#ef6d74" /><Line name="飢餓" dataKey="hunger" stroke="#f0bf63" /></AreaChart></ResponsiveContainer>
-      </ChartCard>
-    </div>}
+    <div className={`trend-overview panel status-${status}`}><span>目前判讀</span><strong>{statusText}</strong><p>{status === 'collecting' ? `已有 ${morning.length}/3 筆晨間體重；滿 3 筆再判讀趨勢。` : `3 日趨勢 ${format(trend, 'kg')}，同日目標 ${format(target, 'kg')}。`}</p></div>
 
-    <div className="section-heading"><h2>摘要</h2><span>{ordered.length} 天紀錄</span></div>
-    <div className="summary-grid">
-      <Summary label="平均每日攝取" value={format(average(ordered.map((log) => log.intakeKcal)), 'kcal')} />
-      <Summary label="平均活動能量" value={format(average(ordered.map(effectiveActiveKcal)), 'kcal')} />
-      <Summary label="平均推估赤字" value={format(average(ordered.map(dailyDeficit)), 'kcal')} />
-      <Summary label="累積推估赤字" value={format(cumulative, 'kcal')} />
-      <Summary label="脂肪等值估算" value={format(fatEquivalentKg(cumulative), 'kg')} note="7700 kcal/kg 僅為估算" />
-      <Summary label="體重實際變化" value={format(actualChange, 'kg')} />
-      <Summary label="有效晨間量測" value={`${morning.length} 次`} />
-      <Summary label="達標天數" value={`${achieved} 天`} note="行為達成率 ≥ 80%" />
+    <div className="summary-grid trend-summary">
+      <Summary label="3 日體重趨勢" value={format(trend, 'kg')} note={morning.length < 3 ? '至少 3 筆晨間量測' : undefined} />
+      <Summary label="平均攝取" value={format(average(ordered.map((log) => log.intakeKcal)), 'kcal')} />
+      <Summary label="平均活動" value={format(average(ordered.map(effectiveActiveKcal)), 'kcal')} />
+      <Summary label="平均最終赤字" value={format(average(finalized.map(dailyDeficit)), 'kcal')} note={`僅 ${finalized.length} 個已結算日`} />
     </div>
+
+    {data.length === 0 ? <div className="empty-state panel"><strong>還沒有趨勢資料</strong><p>先完成晨間紀錄，這裡會開始畫出方向。</p></div> : <ChartCard title="晨間體重與目標區間" note="綠色帶是每日目標 ±0.3 kg；主線只使用晨起空腹體重。">
+      <ResponsiveContainer width="100%" height="100%"><ComposedChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" /><XAxis dataKey="date" tick={{ fill: 'var(--muted)', fontSize: 11 }} /><YAxis domain={['dataMin - 0.5', 'dataMax + 0.5']} tickFormatter={(value: number) => value.toFixed(1)} tick={{ fill: 'var(--muted)', fontSize: 11 }} /><Tooltip contentStyle={tipStyle} /><Legend /><Area name="目標區間" dataKey="targetRange" stroke="none" fill="#65d38e22" /><Line name="目標曲線" dataKey="target" stroke="#65d38e" strokeDasharray="5 4" dot={false} /><Line name="晨間體重" dataKey="morning" stroke="var(--text)" strokeWidth={2} connectNulls /><Line name="3 日趨勢" dataKey="ma3" stroke="#f0bf63" strokeWidth={3} connectNulls dot={false} /></ComposedChart></ResponsiveContainer>
+    </ChartCard>}
+
+    <details className="advanced-trends panel"><summary>查看進階圖表與估算</summary><div className="details-body chart-stack">
+      <div className="advanced-summary"><p>累積最終赤字 <strong>{format(cumulative, 'kcal')}</strong></p><p>最終日線性估算 <strong>{prediction == null ? '需至少 3 筆' : `${prediction.toFixed(1)} kg`}</strong></p><small>估算不是成功機率或醫療判斷，短期水分會造成明顯波動。</small></div>
+      <ChartCard title="體重細節" note={`其他時間量測為虛線；${shouldShowSevenDayAverage(morning.length) ? '已顯示 7 日平均' : '滿 7 筆才顯示 7 日平均'}。`}><ResponsiveContainer width="100%" height="100%"><ComposedChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" /><XAxis dataKey="date" tick={{ fill: 'var(--muted)', fontSize: 11 }} /><YAxis domain={['dataMin - 0.5', 'dataMax + 0.5']} tickFormatter={(value: number) => value.toFixed(1)} tick={{ fill: 'var(--muted)', fontSize: 11 }} /><Tooltip contentStyle={tipStyle} /><Legend /><Line name="晨間" dataKey="morning" stroke="var(--text)" connectNulls /><Line name="其他時間" dataKey="other" stroke="#9ba59e" strokeDasharray="2 4" /><Line name="7 日平均" dataKey="ma7" stroke="#6db7ff" strokeWidth={2} connectNulls dot={false} /></ComposedChart></ResponsiveContainer></ChartCard>
+      <ChartCard title="已結算能量" note="未按日結的日期不顯示消耗或赤字。"><ResponsiveContainer width="100%" height="100%"><ComposedChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" /><XAxis dataKey="date" tick={{ fill: 'var(--muted)', fontSize: 11 }} /><YAxis tick={{ fill: 'var(--muted)', fontSize: 11 }} /><Tooltip contentStyle={tipStyle} /><Legend /><Bar name="攝取" dataKey="intake" fill="#f0bf63" /><Line name="總消耗" dataKey="tdee" stroke="#6db7ff" /><Line name="最終赤字" dataKey="deficit" stroke="#65d38e" /></ComposedChart></ResponsiveContainer></ChartCard>
+      <ChartCard title="活動與運動分鐘" note="活動熱量與分鐘使用相同日期，但不互相加總。"><ResponsiveContainer width="100%" height="100%"><BarChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" /><XAxis dataKey="date" tick={{ fill: 'var(--muted)', fontSize: 11 }} /><YAxis yAxisId="kcal" tick={{ fill: 'var(--muted)', fontSize: 11 }} /><YAxis yAxisId="minutes" orientation="right" tick={{ fill: 'var(--muted)', fontSize: 11 }} /><Tooltip contentStyle={tipStyle} /><Legend /><Bar yAxisId="kcal" name="活動 kcal" dataKey="active" fill="#65d38e" /><Line yAxisId="minutes" name="運動分" dataKey="exercise" stroke="#6db7ff" /></BarChart></ResponsiveContainer></ChartCard>
+      <ChartCard title="恢復訊號" note="前一晚睡眠、疲勞、飢餓與小腿緊繃。"><ResponsiveContainer width="100%" height="100%"><ComposedChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" /><XAxis dataKey="date" tick={{ fill: 'var(--muted)', fontSize: 11 }} /><YAxis tick={{ fill: 'var(--muted)', fontSize: 11 }} /><Tooltip contentStyle={tipStyle} /><Legend /><Line name="睡眠小時" dataKey="sleep" stroke="#6db7ff" /><Line name="疲勞" dataKey="fatigue" stroke="#ef6d74" /><Line name="飢餓" dataKey="hunger" stroke="#f0bf63" /><Line name="小腿" dataKey="leg" stroke="#d594f5" /></ComposedChart></ResponsiveContainer></ChartCard>
+    </div></details>
   </section>
 }

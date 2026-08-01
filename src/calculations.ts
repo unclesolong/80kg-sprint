@@ -70,6 +70,13 @@ export const dailyDeficit = (log: DailyLog): number | undefined => {
   return tdee == null || log.intakeKcal == null ? undefined : tdee - log.intakeKcal
 }
 
+export const finalizedDeficit = (log: DailyLog): number | undefined => log.dayFinalized ? dailyDeficit(log) : undefined
+
+export const finalizedCumulativeDeficit = (logs: DailyLog[], settings: ChallengeSettings): number =>
+  logs
+    .filter((log) => log.dayFinalized && log.date >= settings.startDate && log.date <= settings.finalWeighInDate)
+    .reduce((total, log) => total + (dailyDeficit(log) ?? 0), 0)
+
 export const cumulativeDeficit = (logs: DailyLog[], settings: ChallengeSettings): number =>
   logs
     .filter((log) => log.date >= settings.startDate && log.date <= settings.finalWeighInDate)
@@ -83,6 +90,11 @@ export const targetWeightForDate = (date: string, settings: ChallengeSettings): 
   const total = Math.max(daysBetween(settings.startDate, settings.finalWeighInDate), 1)
   const elapsed = Math.min(Math.max(daysBetween(settings.startDate, date), 0), total)
   return settings.baselineWeightKg + (settings.targetWeightKg - settings.baselineWeightKg) * elapsed / total
+}
+
+export const targetWeightRangeForDate = (date: string, settings: ChallengeSettings, tolerance = .3) => {
+  const target = targetWeightForDate(date, settings)
+  return { lower: target - tolerance, upper: target + tolerance }
 }
 
 export const movingAverage = (values: Array<number | undefined>, window: number): Array<number | undefined> =>
@@ -155,6 +167,49 @@ export const achievementRate = (log: DailyLog, settings: ChallengeSettings): num
     (log.exerciseMinutes ?? 0) >= settings.exerciseMinutesMinimum || (log.steps ?? 0) >= settings.stepsMinimum
   ]
   return Math.round(checks.filter(Boolean).length / checks.length * 100)
+}
+
+export interface DailyCompletion {
+  completed: number
+  total: 7
+  items: Array<{ key: string; label: string; complete: boolean }>
+}
+
+export const dailyCompletion = (log: DailyLog, settings: ChallengeSettings): DailyCompletion => {
+  const activity = activityTotals(log)
+  const items = [
+    { key: 'weight', label: '晨間體重', complete: log.weightKg != null && log.weightCondition === 'morning_fasted' },
+    { key: 'sleep', label: '睡眠', complete: log.sleepHours != null },
+    { key: 'food', label: '飲食已更新', complete: log.intakeKcal != null || log.foodUpdatedAt != null },
+    { key: 'protein', label: '蛋白質', complete: (log.proteinG ?? 0) >= settings.proteinMinimumG },
+    { key: 'water', label: '白開水', complete: (log.waterMl ?? 0) >= settings.waterMinimumMl },
+    { key: 'activity', label: '活動資料', complete: activity.effectiveActiveKcal != null && log.restingKcal != null && log.exerciseMinutes != null && log.steps != null },
+    { key: 'finalized', label: '晚間結算', complete: log.dayFinalized === true }
+  ]
+  return { completed: items.filter((item) => item.complete).length, total: 7, items }
+}
+
+export const remainingFoodBudget = (log: DailyLog, settings: ChallengeSettings): number =>
+  Math.max(0, settings.intakeKcalMaximum - (log.intakeKcal ?? 0))
+
+export const remainingActivity = (log: DailyLog, settings: ChallengeSettings): number =>
+  Math.max(0, settings.activeKcalMinimum - (effectiveActiveKcal(log) ?? 0))
+
+export const shouldShowSevenDayAverage = (morningWeightCount: number): boolean => morningWeightCount >= 7
+
+export type TrendStatus = 'collecting' | 'on_track' | 'possible' | 'behind'
+
+export const weightTrendStatus = (logs: DailyLog[], date: string, settings: ChallengeSettings): { status: TrendStatus; label: string; detail: string; trend?: number; gap?: number } => {
+  const morning = logs
+    .filter((log) => log.date <= date && log.weightCondition === 'morning_fasted' && log.weightKg != null)
+    .sort((a, b) => a.date.localeCompare(b.date))
+  if (morning.length < 3) return { status: 'collecting', label: '資料累積中', detail: '至少需要 3 筆晨間體重。' }
+  const trend = movingAverage(morning.map((log) => log.weightKg), 3).at(-1)!
+  const range = targetWeightRangeForDate(date, settings)
+  const gap = trend - range.upper
+  if (gap <= 0) return { status: 'on_track', label: '進度正常', detail: '3 日趨勢位於目前目標區間內。', trend, gap }
+  if (gap <= .5) return { status: 'possible', label: '仍有機會', detail: `3 日趨勢距目標區間約 ${gap.toFixed(1)} kg。`, trend, gap }
+  return { status: 'behind', label: '暫時落後', detail: `3 日趨勢高於目標區間約 ${gap.toFixed(1)} kg；先維持紀錄，不做激烈補償。`, trend, gap }
 }
 
 export const average = (values: Array<number | undefined>): number | undefined => {

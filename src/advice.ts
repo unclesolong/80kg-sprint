@@ -8,8 +8,19 @@ export const buildAdvice = (current: DailyLog, logs: DailyLog[], settings: Chall
   const ordered = [...logs].filter((log) => log.date <= current.date).sort((a, b) => a.date.localeCompare(b.date))
   const previous = ordered.at(-2)
   const currentActivity = effectiveActiveKcal(current)
+  const legIncreasing = previous?.lowerLegTightness != null && current.lowerLegTightness != null && current.lowerLegTightness > previous.lowerLegTightness
+  const concerningPainNote = /腫脹|發紅|尖銳|無法.*走|不能.*走/.test(current.painNotes ?? '')
 
-  if ((current.sleepHours ?? settings.sleepMinimumHours) < settings.sleepMinimumHours || (current.fatigueLevel ?? 1) >= 4) {
+  if (concerningPainNote) {
+    advice.push({ level: 'warn', text: '備註提到較明顯的下肢症狀；請停止勉強運動，若持續或影響正常走路，尋求醫療專業評估。本 App 不作診斷。' })
+  }
+  if ((current.lowerLegTightness ?? 0) >= 3) {
+    advice.push({ level: 'warn', text: '下肢緊繃／疼痛較高，今天改走路或休息，不追 660 kcal；活動可暫降至約 500–550 kcal。' })
+  } else if (current.lowerLegTightness === 2) {
+    advice.push({ level: 'near', text: '小腿已有緊繃，今天不補跑；若走路自然且沒有加劇，可做 10–20 分鐘輕鬆走路。' })
+  } else if (legIncreasing) {
+    advice.push({ level: 'near', text: '下肢緊繃已連續上升，今天不要提高運動量，先觀察恢復。' })
+  } else if ((current.sleepHours ?? settings.sleepMinimumHours) < settings.sleepMinimumHours || (current.fatigueLevel ?? 1) >= 4) {
     advice.push({ level: 'near', text: `今天以恢復為先，不增加運動量；活動能量可暫降到約 ${Math.round(settings.activeKcalMinimum * .9)}–${settings.activeKcalMinimum} kcal。` })
   } else if ((currentActivity ?? 0) < settings.activeKcalMinimum) {
     advice.push({ level: 'near', text: '目前活動尚未達基本目標；若今天稍晚身體感覺良好，可增加 15–20 分鐘輕鬆走路或超慢跑。' })

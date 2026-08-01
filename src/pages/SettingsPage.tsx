@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react'
+import { defaultFoodTemplates } from '../defaults'
 import { buildCsv, buildWeeklySummary, downloadText, makeBackup } from '../export'
 import { shareReportPdf, shareReportPng } from '../report'
+import type { ChallengeSettings, CustomFood, DailyLog, FoodTemplate } from '../types'
 import { validateBackup } from '../validation'
-import type { ChallengeSettings, CustomFood, DailyLog } from '../types'
 
 const SettingNumber = ({ label, value, unit, step = 1, onChange }: { label: string; value: number; unit: string; step?: number; onChange: (value: number) => void }) => <label className="setting-row"><span>{label}</span><div><input inputMode="decimal" type="number" min="0" step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} /><small>{unit}</small></div></label>
 
@@ -16,6 +17,8 @@ export function SettingsPage({ today, settings, logs, foods, onSettings, onImpor
   const [message, setMessage] = useState('')
   const [generatingReport, setGeneratingReport] = useState<'png' | 'pdf'>()
   const set = <K extends keyof ChallengeSettings>(key: K, value: ChallengeSettings[K]) => onSettings({ ...settings, [key]: value })
+  const templates = settings.foodTemplates ?? defaultFoodTemplates()
+  const updateTemplate = (id: string, patch: Partial<FoodTemplate>) => set('foodTemplates', templates.map((template) => template.id === id ? { ...template, ...patch } : template))
   const backup = () => downloadText(`80kg-sprint-backup-${today}.json`, JSON.stringify(makeBackup(settings, logs, foods), null, 2), 'application/json')
   const share = async () => {
     const text = buildWeeklySummary(settings, logs, today)
@@ -31,15 +34,11 @@ export function SettingsPage({ today, settings, logs, foods, onSettings, onImpor
     setGeneratingReport(kind)
     setMessage(kind === 'png' ? '正在產生分析圖卡…' : '正在產生 PDF…')
     try {
-      const result = kind === 'png'
-        ? await shareReportPng(settings, logs, today)
-        : await shareReportPdf(settings, logs, today)
+      const result = kind === 'png' ? await shareReportPng(settings, logs, today) : await shareReportPdf(settings, logs, today)
       setMessage(result === 'shared' ? '報告已送出分享。' : result === 'downloaded' ? '報告已下載到此裝置。' : '已取消分享。')
     } catch (error) {
       setMessage(`報告產生失敗：${error instanceof Error ? error.message : '瀏覽器不支援此功能'}`)
-    } finally {
-      setGeneratingReport(undefined)
-    }
+    } finally { setGeneratingReport(undefined) }
   }
   const importFile = async (file?: File) => {
     if (!file) return
@@ -51,9 +50,7 @@ export function SettingsPage({ today, settings, logs, foods, onSettings, onImpor
       setMessage('匯入成功；匯入前的資料已自動下載備份。')
     } catch (error) {
       setMessage(`匯入失敗：${error instanceof Error ? error.message : '無法讀取檔案'}。原有資料未變更。`)
-    } finally {
-      if (fileRef.current) fileRef.current.value = ''
-    }
+    } finally { if (fileRef.current) fileRef.current.value = '' }
   }
   const clear = async () => {
     if (!confirm('第一次確認：確定要清除所有健康紀錄與設定嗎？')) return
@@ -62,15 +59,22 @@ export function SettingsPage({ today, settings, logs, foods, onSettings, onImpor
   }
 
   return <section className="page settings-page">
-    <header className="page-header"><div><p className="eyebrow">掌握你的資料</p><h1>設定</h1></div></header>
-    <div className="privacy-card panel"><span aria-hidden="true">⌁</span><div><strong>資料只儲存在此裝置</strong><p>刪除瀏覽器資料或移除網站資料可能造成資料遺失，請定期匯出 JSON 備份。</p></div></div>
+    <header className="page-header"><div><p className="eyebrow">只保留每天會用到的</p><h1>設定</h1></div></header>
+    <div className="privacy-card panel"><span aria-hidden="true">⌁</span><div><strong>資料只儲存在此裝置</strong><p>GitHub 只保存程式碼。刪除網站資料前，請先匯出 JSON。</p></div></div>
 
-    <div className="settings-group panel"><h3>挑戰</h3><label className="setting-row"><span>起始日期</span><input type="date" value={settings.startDate} onChange={(event) => set('startDate', event.target.value)} /></label><label className="setting-row"><span>最終秤重日</span><input type="date" value={settings.finalWeighInDate} onChange={(event) => set('finalWeighInDate', event.target.value)} /></label><SettingNumber label="基準體重" value={settings.baselineWeightKg} unit="kg" step={0.1} onChange={(value) => set('baselineWeightKg', value)} /><SettingNumber label="目標體重" value={settings.targetWeightKg} unit="kg" step={0.1} onChange={(value) => set('targetWeightKg', value)} /><SettingNumber label="身高" value={settings.heightCm} unit="cm" onChange={(value) => set('heightCm', value)} /></div>
-    <div className="settings-group panel"><h3>每日目標</h3><SettingNumber label="活動目標" value={settings.activeKcalTarget} unit="kcal" onChange={(value) => set('activeKcalTarget', value)} /><SettingNumber label="活動下限" value={settings.activeKcalMinimum} unit="kcal" onChange={(value) => set('activeKcalMinimum', value)} /><SettingNumber label="活動上限" value={settings.activeKcalMaximum} unit="kcal" onChange={(value) => set('activeKcalMaximum', value)} /><SettingNumber label="攝取下限" value={settings.intakeKcalMinimum} unit="kcal" onChange={(value) => set('intakeKcalMinimum', value)} /><SettingNumber label="攝取上限" value={settings.intakeKcalMaximum} unit="kcal" onChange={(value) => set('intakeKcalMaximum', value)} /><SettingNumber label="蛋白質下限" value={settings.proteinMinimumG} unit="g" onChange={(value) => set('proteinMinimumG', value)} /><SettingNumber label="蛋白質上限" value={settings.proteinMaximumG} unit="g" onChange={(value) => set('proteinMaximumG', value)} /><SettingNumber label="飲水下限" value={settings.waterMinimumMl} unit="ml" onChange={(value) => set('waterMinimumMl', value)} /><SettingNumber label="飲水上限" value={settings.waterMaximumMl} unit="ml" onChange={(value) => set('waterMaximumMl', value)} /><SettingNumber label="睡眠下限" value={settings.sleepMinimumHours} unit="小時" step={0.25} onChange={(value) => set('sleepMinimumHours', value)} /><SettingNumber label="步數下限" value={settings.stepsMinimum} unit="步" onChange={(value) => set('stepsMinimum', value)} /><SettingNumber label="步數上限" value={settings.stepsMaximum} unit="步" onChange={(value) => set('stepsMaximum', value)} /><SettingNumber label="運動分鐘下限" value={settings.exerciseMinutesMinimum} unit="分" onChange={(value) => set('exerciseMinutesMinimum', value)} /><SettingNumber label="運動分鐘上限" value={settings.exerciseMinutesMaximum} unit="分" onChange={(value) => set('exerciseMinutesMaximum', value)} /></div>
-    <div className="settings-group panel"><h3>外觀</h3><div className="segmented"><button className={settings.theme === 'dark' ? 'selected' : ''} onClick={() => set('theme', 'dark')}>深色</button><button className={settings.theme === 'light' ? 'selected' : ''} onClick={() => set('theme', 'light')}>淺色</button></div></div>
-    <div className="settings-group report-group panel"><h3>分析與分享</h3><p className="group-intro">報告完全在此裝置產生。PNG 適合截圖或傳訊息；PDF 與 CSV／JSON 更適合交給 ChatGPT 做完整分析。</p><div className="report-actions"><button className="primary report-action" disabled={Boolean(generatingReport)} onClick={() => void exportReport('png')}><span>▣</span><div><strong>{generatingReport === 'png' ? '正在產生…' : '分享分析圖卡 PNG'}</strong><small>固定淺色版面，手機閱讀清楚</small></div></button><button className="report-action" disabled={Boolean(generatingReport)} onClick={() => void exportReport('pdf')}><span>PDF</span><div><strong>{generatingReport === 'pdf' ? '正在產生…' : '分享／下載 PDF 報告'}</strong><small>A4 挑戰摘要與逐日資料</small></div></button><button className="report-action" onClick={share}><span>AI</span><div><strong>分享文字摘要給 ChatGPT</strong><small>結構化文字最適合精確分析</small></div></button></div>{message && <p className="status-message" role="status">{message}</p>}</div>
-    <div className="settings-group panel"><h3>資料備份</h3><p className="group-intro">CSV 便於分析，JSON 可完整備份與還原。健康紀錄請勿 commit 到 GitHub。</p><div className="action-list"><button onClick={() => downloadText(`80kg-sprint-${today}.csv`, buildCsv(logs), 'text/csv;charset=utf-8')}>匯出 CSV</button><button onClick={backup}>匯出 JSON 備份</button><button onClick={() => fileRef.current?.click()}>匯入 JSON</button><input ref={fileRef} hidden type="file" accept="application/json,.json" onChange={(event) => importFile(event.target.files?.[0])} /><button className="danger" onClick={clear}>清除所有資料</button></div></div>
-    <div className="install-card panel"><h3>加入 iPhone 主畫面</h3><ol><li>使用 Safari 開啟此網站。</li><li>點選底部的「分享」圖示。</li><li>選擇「加入主畫面」，再按「加入」。</li></ol><p>安裝後可離線查看與輸入；資料仍只在這台裝置。</p></div>
-    <p className="health-note">80KG Sprint 提供紀錄與估算，不是醫療診斷。若出現劇烈腹痛、嘔吐、腹脹或血便，請就醫。</p>
+    <div className="settings-group panel"><h3>這次 7 日衝刺</h3><label className="setting-row"><span>起始日期</span><input type="date" value={settings.startDate} onChange={(event) => set('startDate', event.target.value)} /></label><label className="setting-row"><span>最終秤重日</span><input type="date" value={settings.finalWeighInDate} onChange={(event) => set('finalWeighInDate', event.target.value)} /></label><SettingNumber label="基準體重" value={settings.baselineWeightKg} unit="kg" step={0.1} onChange={(value) => set('baselineWeightKg', value)} /><SettingNumber label="目標體重" value={settings.targetWeightKg} unit="kg" step={0.1} onChange={(value) => set('targetWeightKg', value)} /></div>
+
+    <div className="settings-group panel"><h3>每天主要目標</h3><SettingNumber label="攝取下限" value={settings.intakeKcalMinimum} unit="kcal" onChange={(value) => set('intakeKcalMinimum', value)} /><SettingNumber label="攝取上限" value={settings.intakeKcalMaximum} unit="kcal" onChange={(value) => set('intakeKcalMaximum', value)} /><SettingNumber label="活動目標" value={settings.activeKcalTarget} unit="kcal" onChange={(value) => set('activeKcalTarget', value)} /><SettingNumber label="蛋白質至少" value={settings.proteinMinimumG} unit="g" onChange={(value) => set('proteinMinimumG', value)} /><SettingNumber label="喝水至少" value={settings.waterMinimumMl} unit="ml" onChange={(value) => set('waterMinimumMl', value)} /><SettingNumber label="睡眠至少" value={settings.sleepMinimumHours} unit="小時" step={0.25} onChange={(value) => set('sleepMinimumHours', value)} /></div>
+
+    <details className="settings-details panel"><summary>進階目標</summary><div className="details-body"><SettingNumber label="身高" value={settings.heightCm} unit="cm" onChange={(value) => set('heightCm', value)} /><SettingNumber label="活動下限" value={settings.activeKcalMinimum} unit="kcal" onChange={(value) => set('activeKcalMinimum', value)} /><SettingNumber label="活動上限" value={settings.activeKcalMaximum} unit="kcal" onChange={(value) => set('activeKcalMaximum', value)} /><SettingNumber label="蛋白質上限" value={settings.proteinMaximumG} unit="g" onChange={(value) => set('proteinMaximumG', value)} /><SettingNumber label="飲水上限" value={settings.waterMaximumMl} unit="ml" onChange={(value) => set('waterMaximumMl', value)} /><SettingNumber label="步數下限" value={settings.stepsMinimum} unit="步" onChange={(value) => set('stepsMinimum', value)} /><SettingNumber label="步數上限" value={settings.stepsMaximum} unit="步" onChange={(value) => set('stepsMaximum', value)} /><SettingNumber label="運動分鐘下限" value={settings.exerciseMinutesMinimum} unit="分" onChange={(value) => set('exerciseMinutesMinimum', value)} /><SettingNumber label="運動分鐘上限" value={settings.exerciseMinutesMaximum} unit="分" onChange={(value) => set('exerciseMinutesMaximum', value)} /></div></details>
+
+    <details className="settings-details panel"><summary>飲食快捷模板 <small>{templates.length} 組</small></summary><div className="details-body template-editor"><p className="group-intro">快捷加入會同步熱量、蛋白質、碳水、脂肪、纖維與鈉；修改數字後立即套用。</p>{templates.map((template) => <article key={template.id} className="template-card"><label>名稱<input value={template.name} onChange={(event) => updateTemplate(template.id, { name: event.target.value })} /></label><label>說明<input value={template.description} onChange={(event) => updateTemplate(template.id, { description: event.target.value })} /></label><div className="template-nutrients">{([['kcal', 'kcal'], ['proteinG', '蛋白 g'], ['carbsG', '碳水 g'], ['fatG', '脂肪 g'], ['fiberG', '纖維 g'], ['sodiumMg', '鈉 mg']] as const).map(([key, label]) => <label key={key}>{label}<input type="number" min="0" value={template[key]} onChange={(event) => updateTemplate(template.id, { [key]: Number(event.target.value) })} /></label>)}</div><label className="template-quick"><input type="checkbox" checked={Boolean(template.quick)} onChange={(event) => updateTemplate(template.id, { quick: event.target.checked })} />顯示在首頁快捷</label></article>)}</div></details>
+
+    <details className="settings-details report-group panel" open><summary>報告與分享</summary><div className="details-body"><p className="group-intro">PNG 適合傳訊息；PDF、CSV 與文字摘要適合交給 ChatGPT。只有已日結日期會納入最終赤字統計。</p><div className="report-actions"><button className="primary report-action" disabled={Boolean(generatingReport)} onClick={() => void exportReport('png')}><span>▣</span><div><strong>{generatingReport === 'png' ? '正在產生…' : '分享分析圖卡 PNG'}</strong><small>手機閱讀清楚</small></div></button><button className="report-action" disabled={Boolean(generatingReport)} onClick={() => void exportReport('pdf')}><span>PDF</span><div><strong>{generatingReport === 'pdf' ? '正在產生…' : '分享／下載 PDF'}</strong><small>A4 挑戰摘要</small></div></button><button className="report-action" onClick={share}><span>AI</span><div><strong>分享文字摘要給 ChatGPT</strong><small>結構化逐日資料</small></div></button></div>{message && <p className="status-message" role="status">{message}</p>}</div></details>
+
+    <details className="settings-details panel"><summary>資料工具與外觀</summary><div className="details-body"><p className="group-intro">JSON 可完整還原。請勿把匯出的健康資料 commit 到 GitHub。</p><div className="action-list"><button onClick={() => downloadText(`80kg-sprint-${today}.csv`, buildCsv(logs), 'text/csv;charset=utf-8')}>匯出 CSV</button><button onClick={backup}>匯出 JSON 備份</button><button onClick={() => fileRef.current?.click()}>匯入 JSON</button><input ref={fileRef} hidden type="file" accept="application/json,.json" onChange={(event) => importFile(event.target.files?.[0])} /></div><h4>外觀</h4><div className="segmented"><button className={settings.theme === 'dark' ? 'selected' : ''} onClick={() => set('theme', 'dark')}>深色</button><button className={settings.theme === 'light' ? 'selected' : ''} onClick={() => set('theme', 'light')}>淺色</button></div><button className="danger clear-data" onClick={clear}>清除所有資料</button></div></details>
+
+    <div className="install-card panel"><h3>加入 iPhone 主畫面</h3><ol><li>使用 Safari 開啟網站。</li><li>點底部「分享」。</li><li>選「加入主畫面」。</li></ol><p>安裝後可離線輸入；資料仍只在這台裝置。</p></div>
+    <p className="health-note">若疼痛持續、加劇或影響步態，請停止加量並尋求專業醫療評估。</p>
   </section>
 }

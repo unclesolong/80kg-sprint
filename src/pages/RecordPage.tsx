@@ -1,284 +1,180 @@
 import { useEffect, useRef, useState } from 'react'
-import { activityTotals, localDateString, mealTotals, parseLocalDate, sleepDurationHours } from '../calculations'
-import { defaultMealDetails } from '../defaults'
-import type { CustomFood, DailyLog, MealDetails, MealLine, WorkoutEntry, WorkoutType } from '../types'
+import { dailyDeficit, effectiveActiveKcal, estimatedTDEE, mealTotals, parseLocalDate, sleepDurationHours } from '../calculations'
+import { emptyMealDetails } from '../defaults'
+import type { ChallengeSettings, CustomFood, DailyLog, MealDetails, MealLine, RecordStage, WorkoutEntry, WorkoutType } from '../types'
+import { FoodQuickActions } from '../components/FoodQuickActions'
 import { NumberField } from '../components/NumberField'
 
 const Section = ({ title, missing, open = true, children }: { title: string; missing?: boolean; open?: boolean; children: React.ReactNode }) => <details className="form-section panel" open={open}>
   <summary><span>{title}</span>{missing && <em>尚未完成</em>}</summary><div className="section-body">{children}</div>
 </details>
 
-const SelectScale = ({ label, value, max = 5, onChange }: { label: string; value?: number; max?: number; onChange: (value: number) => void }) => <div className="field-block"><label>{label}</label><div className="scale">{Array.from({ length: max }, (_, i) => i + 1).map((number) => <button type="button" className={value === number ? 'selected' : ''} onClick={() => onChange(number)} key={number}>{number}</button>)}</div></div>
+const SelectScale = ({ label, value, min = 1, max = 5, onChange }: { label: string; value?: number; min?: number; max?: number; onChange: (value: number) => void }) => <div className="field-block"><label>{label}</label><div className="scale">{Array.from({ length: max - min + 1 }, (_, i) => i + min).map((number) => <button type="button" className={value === number ? 'selected' : ''} onClick={() => onChange(number)} key={number}>{number}</button>)}</div></div>
 
-const lineTotals = (lines: MealLine[]) => lines.reduce((total, line) => ({
-  kcal: total.kcal + line.amount * line.kcalPerUnit,
-  protein: total.protein + line.amount * line.proteinPerUnit
-}), { kcal: 0, protein: 0 })
+const lineTotals = (lines: MealLine[]) => lines.reduce((total, line) => ({ kcal: total.kcal + line.amount * line.kcalPerUnit, protein: total.protein + line.amount * line.proteinPerUnit }), { kcal: 0, protein: 0 })
 
 const MealEditor = ({ title, lines, onChange }: { title: string; lines: MealLine[]; onChange: (lines: MealLine[]) => void }) => {
   const total = lineTotals(lines)
-  return <details className="meal-editor panel-inner">
-    <summary><span>{title}</span><strong>{Math.round(total.kcal)} kcal · {Math.round(total.protein)} g 蛋白質</strong></summary>
-    <div>{lines.length === 0 ? <p className="empty">尚無食物，可從下方自訂食物加入。</p> : lines.map((line, index) => <div className="meal-line" key={`${line.key}-${index}`}>
-      <NumberField label={line.label} value={line.amount} unit={line.key === 'sauce' || line.key === 'extra' ? 'kcal' : line.unit} step={line.unit === '份' || line.unit === '顆' ? 1 : 5} onChange={(amount) => onChange(lines.map((item, itemIndex) => itemIndex === index ? { ...item, amount: amount ?? 0 } : item))} />
-      <button type="button" className="danger-text compact-button" aria-label={`刪除${line.label}`} onClick={() => onChange(lines.filter((_, itemIndex) => itemIndex !== index))}>移除</button>
-    </div>)}</div>
-  </details>
+  const visible = lines.filter((line) => line.amount > 0)
+  return <details className="meal-editor panel-inner"><summary><span>{title}</span><strong>{Math.round(total.kcal)} kcal · {Math.round(total.protein)}g P</strong></summary><div>{visible.length === 0 ? <p className="empty">尚無已記錄食物。</p> : visible.map((line) => {
+    const index = lines.indexOf(line)
+    return <div className="meal-line" key={`${line.key}-${index}`}><NumberField label={line.label} value={line.amount} unit={line.unit} step={line.unit === '份' || line.unit === '顆' ? 1 : 5} onChange={(amount) => onChange(lines.map((item, itemIndex) => itemIndex === index ? { ...item, amount: amount ?? 0 } : item))} /><button type="button" className="danger-text compact-button" onClick={() => onChange(lines.filter((_, itemIndex) => itemIndex !== index))}>移除</button></div>
+  })}</div></details>
 }
 
-type RecordTab = 'morning' | 'activity' | 'food' | 'water' | 'condition'
+const workoutLabels: Record<WorkoutType, string> = { walk: '步行', slow_jog: '超慢跑', run: '跑步', strength: '重量訓練', cycling: '單車', other: '其他' }
+const blankWorkout = (): WorkoutEntry => ({ id: crypto.randomUUID(), type: 'walk', title: '步行', durationMinutes: 0, source: 'apple_watch', activityKcalMode: 'included_in_daily_total' })
+const blankFood = (): Omit<CustomFood, 'id'> => ({ name: '', basis: '100g', kcal: 0, proteinG: 0, carbsG: 0, fatG: 0, fiberG: 0, sodiumMg: 0, defaultAmount: 100 })
 const mealKeys = ['breakfast', 'lunch', 'dinner', 'evening'] as const
 type MealKey = typeof mealKeys[number]
 
-const workoutLabels: Record<WorkoutType, string> = {
-  walk: '步行', slow_jog: '超慢跑', run: '跑步', strength: '重量訓練', cycling: '單車', other: '其他'
-}
-
-const blankWorkout = (): WorkoutEntry => ({
-  id: crypto.randomUUID(), type: 'walk', title: '步行', durationMinutes: 0, source: 'apple_watch', activityKcalMode: 'included_in_daily_total'
-})
-
-const blankFood = (): Omit<CustomFood, 'id'> => ({
-  name: '', basis: '100g', kcal: 0, proteinG: 0, carbsG: 0, fatG: 0, fiberG: 0, sodiumMg: 0, defaultAmount: 100
-})
-
-export function RecordPage({ date, log, foods, saveState, onDate, onChange, onSaveFood, onDeleteFood, onDone }: {
-  date: string; log: DailyLog; foods: CustomFood[]; onDate: (date: string) => void
-  saveState: 'saved' | 'saving' | 'error'; onChange: (patch: Partial<DailyLog>) => void
-  onSaveFood: (food: CustomFood) => void; onDeleteFood: (id: string) => void; onDone: () => void
+export function RecordPage({ date, log, foods, settings, initialStage, saveState, onDate, onChange, onSaveFood, onDeleteFood, onDone }: {
+  date: string
+  log: DailyLog
+  foods: CustomFood[]
+  settings: ChallengeSettings
+  initialStage: RecordStage
+  saveState: 'saved' | 'saving' | 'error'
+  onDate: (date: string) => void
+  onChange: (patch: Partial<DailyLog>) => void
+  onSaveFood: (food: CustomFood) => void
+  onDeleteFood: (id: string) => void
+  onDone: () => void
 }) {
-  const sleepTimesRef = useRef({ startedAt: log.sleepStartedAt, endedAt: log.sleepEndedAt })
-  useEffect(() => {
-    sleepTimesRef.current = { startedAt: log.sleepStartedAt, endedAt: log.sleepEndedAt }
-  }, [log.sleepStartedAt, log.sleepEndedAt])
+  const [activeStage, setActiveStage] = useState<RecordStage>(initialStage)
   const [newFood, setNewFood] = useState<Omit<CustomFood, 'id'>>(blankFood)
   const [editingFoodId, setEditingFoodId] = useState<string>()
   const [workoutDraft, setWorkoutDraft] = useState<WorkoutEntry>(blankWorkout)
   const [editingWorkoutId, setEditingWorkoutId] = useState<string>()
   const [showWorkoutForm, setShowWorkoutForm] = useState(false)
-  const [activeTab, setActiveTab] = useState<RecordTab>('morning')
-  const details = log.mealDetails ?? defaultMealDetails()
-  const workouts = log.workouts ?? []
-  const activity = activityTotals(log)
-  const workoutMinutes = workouts.reduce((sum, workout) => sum + workout.durationMinutes, 0)
-  const isToday = date === localDateString()
-  const activityUpdatedLabel = log.activityUpdatedAt
-    ? new Intl.DateTimeFormat('zh-TW', { hour: '2-digit', minute: '2-digit' }).format(new Date(log.activityUpdatedAt))
-    : undefined
+  const sleepTimesRef = useRef({ startedAt: log.sleepStartedAt, endedAt: log.sleepEndedAt })
 
+  useEffect(() => setActiveStage(initialStage), [initialStage, date])
+  useEffect(() => { sleepTimesRef.current = { startedAt: log.sleepStartedAt, endedAt: log.sleepEndedAt } }, [log.sleepStartedAt, log.sleepEndedAt])
+
+  const details = log.mealDetails ?? emptyMealDetails()
+  const workouts = log.workouts ?? []
+  const templates = settings.foodTemplates ?? []
+  const activityValue = effectiveActiveKcal(log)
+  const finalTdee = log.dayFinalized ? estimatedTDEE(log) : undefined
+  const finalDeficit = log.dayFinalized ? dailyDeficit(log) : undefined
+  const eveningMissing = [activityValue, log.restingKcal, log.exerciseMinutes, log.steps, log.hungerLevel, log.fatigueLevel, log.highSaltMeal].some((value) => value == null)
+
+  const previousDate = parseLocalDate(date); previousDate.setDate(previousDate.getDate() - 1)
+  const currentDate = parseLocalDate(date)
+  const shortDate = (value: Date) => new Intl.DateTimeFormat('zh-TW', { month: 'numeric', day: 'numeric' }).format(value)
+  const updateFood = (patch: Partial<DailyLog>) => onChange({ ...patch, foodUpdatedAt: new Date().toISOString() })
+  const updateActivity = (patch: Partial<DailyLog>) => onChange({ ...patch, activityUpdatedAt: new Date().toISOString() })
   const updateDetails = (next: MealDetails) => {
     const totals = mealTotals(next)
-    onChange({
-      mealDetails: next, intakeKcal: totals.kcal, proteinG: totals.protein,
-      carbsG: totals.carbs, fatG: totals.fat, fiberG: totals.fiber, sodiumMg: totals.sodium
-    })
+    updateFood({ mealDetails: next, intakeKcal: totals.kcal, proteinG: totals.protein, carbsG: totals.carbs, fatG: totals.fat, fiberG: totals.fiber, sodiumMg: totals.sodium })
   }
   const setMeal = (key: MealKey, lines: MealLine[]) => updateDetails({ ...details, [key]: lines })
+  const updateSleepTime = (key: 'sleepStartedAt' | 'sleepEndedAt', value: string) => {
+    const nextTimes = { ...sleepTimesRef.current, [key === 'sleepStartedAt' ? 'startedAt' : 'endedAt']: value || undefined }
+    sleepTimesRef.current = nextTimes
+    const sleepHours = sleepDurationHours(nextTimes.startedAt, nextTimes.endedAt)
+    onChange({ [key]: value || undefined, ...(sleepHours == null ? {} : { sleepHours }) })
+  }
+
   const addCustom = (food: CustomFood, meal: MealKey) => {
     const divider = food.basis === '100g' ? 100 : food.defaultAmount || 1
-    setMeal(meal, [...details[meal], {
-      key: `${food.id}-${crypto.randomUUID()}`, label: food.name, amount: food.defaultAmount,
-      unit: food.basis === '100g' ? 'g' : '份', kcalPerUnit: food.kcal / divider,
-      proteinPerUnit: food.proteinG / divider, carbsPerUnit: (food.carbsG ?? 0) / divider,
-      fatPerUnit: (food.fatG ?? 0) / divider, fiberPerUnit: (food.fiberG ?? 0) / divider,
-      sodiumPerUnit: (food.sodiumMg ?? 0) / divider
-    }])
+    setMeal(meal, [...details[meal], { key: `${food.id}-${crypto.randomUUID()}`, label: food.name, amount: food.defaultAmount, unit: food.basis === '100g' ? 'g' : '份', kcalPerUnit: food.kcal / divider, proteinPerUnit: food.proteinG / divider, carbsPerUnit: (food.carbsG ?? 0) / divider, fatPerUnit: (food.fatG ?? 0) / divider, fiberPerUnit: (food.fiberG ?? 0) / divider, sodiumPerUnit: (food.sodiumMg ?? 0) / divider }])
   }
   const saveFoodEntry = () => {
     if (!newFood.name.trim()) return
     onSaveFood({ ...newFood, name: newFood.name.trim(), id: editingFoodId ?? crypto.randomUUID() })
     setNewFood(blankFood()); setEditingFoodId(undefined)
   }
-  const editFood = (food: CustomFood) => {
-    setEditingFoodId(food.id)
-    setNewFood({ name: food.name, basis: food.basis, kcal: food.kcal, proteinG: food.proteinG, carbsG: food.carbsG ?? 0, fatG: food.fatG ?? 0, fiberG: food.fiberG ?? 0, sodiumMg: food.sodiumMg ?? 0, defaultAmount: food.defaultAmount })
-  }
+  const editFood = (food: CustomFood) => { setEditingFoodId(food.id); setNewFood({ name: food.name, basis: food.basis, kcal: food.kcal, proteinG: food.proteinG, carbsG: food.carbsG ?? 0, fatG: food.fatG ?? 0, fiberG: food.fiberG ?? 0, sodiumMg: food.sodiumMg ?? 0, defaultAmount: food.defaultAmount }) }
+
   const saveWorkout = () => {
-    if (!workoutDraft.title.trim() || workoutDraft.durationMinutes <= 0 || (workoutDraft.activityKcalMode === 'add_to_daily_total' && workoutDraft.activeKcal == null)) return
-    const next = editingWorkoutId
-      ? workouts.map((workout) => workout.id === editingWorkoutId ? workoutDraft : workout)
-      : [...workouts, workoutDraft]
-    onChange({ workouts: next, activityUpdatedAt: new Date().toISOString() })
+    if (workoutDraft.durationMinutes <= 0 || (workoutDraft.activityKcalMode === 'add_to_daily_total' && workoutDraft.activeKcal == null)) return
+    const normalized = { ...workoutDraft, title: workoutDraft.title.trim() || workoutLabels[workoutDraft.type] }
+    const next = editingWorkoutId ? workouts.map((workout) => workout.id === editingWorkoutId ? normalized : workout) : [...workouts, normalized]
+    updateActivity({ workouts: next })
     setWorkoutDraft(blankWorkout()); setEditingWorkoutId(undefined); setShowWorkoutForm(false)
   }
   const editWorkout = (workout: WorkoutEntry) => { setWorkoutDraft({ ...workout, activityKcalMode: workout.activityKcalMode ?? 'included_in_daily_total' }); setEditingWorkoutId(workout.id); setShowWorkoutForm(true) }
-  const deleteWorkout = (id: string) => onChange({ workouts: workouts.filter((item) => item.id !== id), activityUpdatedAt: new Date().toISOString() })
-  const updateActivity = (patch: Partial<DailyLog>) => onChange({ ...patch, activityUpdatedAt: new Date().toISOString() })
-  const markPendingWorkoutsIncluded = () => onChange({
-    workouts: workouts.map((workout) => workout.activityKcalMode === 'add_to_daily_total'
-      ? { ...workout, activityKcalMode: 'included_in_daily_total' }
-      : workout),
-    activityUpdatedAt: new Date().toISOString()
-  })
-  const updateSleepTime = (key: 'sleepStartedAt' | 'sleepEndedAt', value: string) => {
-    const nextTimes = {
-      ...sleepTimesRef.current,
-      [key === 'sleepStartedAt' ? 'startedAt' : 'endedAt']: value || undefined,
-    }
-    sleepTimesRef.current = nextTimes
-    const sleepHours = sleepDurationHours(nextTimes.startedAt, nextTimes.endedAt)
-    onChange({ [key]: value || undefined, ...(sleepHours == null ? {} : { sleepHours }) })
-  }
 
-  const previousDate = parseLocalDate(date)
-  previousDate.setDate(previousDate.getDate() - 1)
-  const shortDate = (value: Date) => new Intl.DateTimeFormat('zh-TW', { month: 'numeric', day: 'numeric' }).format(value)
-  const currentDate = parseLocalDate(date)
-  const tabs: Array<{ id: RecordTab; label: string; incomplete: boolean }> = [
-    { id: 'morning', label: '晨間', incomplete: log.weightKg == null || log.sleepHours == null },
-    { id: 'activity', label: '活動', incomplete: activity.effectiveActiveKcal == null || log.restingKcal == null },
-    { id: 'food', label: '飲食', incomplete: log.intakeKcal == null || log.proteinG == null },
-    { id: 'water', label: '水分', incomplete: log.waterMl == null },
-    { id: 'condition', label: '狀態', incomplete: log.hungerLevel == null || log.fatigueLevel == null }
+  const stages: Array<{ id: RecordStage; label: string; sub: string; incomplete: boolean }> = [
+    { id: 'morning', label: '早上', sub: '20秒', incomplete: log.weightKg == null || log.sleepHours == null || log.bowelMovement === 'unrecorded' || log.lowerLegTightness == null },
+    { id: 'food', label: '飲食與水分', sub: '隨吃隨記', incomplete: log.intakeKcal == null || log.proteinG == null || log.waterMl == null },
+    { id: 'evening', label: '晚間結算', sub: '30秒', incomplete: eveningMissing || !log.dayFinalized }
   ]
 
-  return <section className="page record-page">
-    <header className="page-header"><div><p className="eyebrow">自動儲存</p><h1>每日紀錄</h1></div><input aria-label="紀錄日期" type="date" value={date} onChange={(event) => onDate(event.target.value)} /></header>
-    <p className="autosave-note">每次修改都會儲存在此裝置的 IndexedDB。</p>
+  return <section className="page record-page sprint-record">
+    <header className="page-header"><div><p className="eyebrow">每天三次 · 自動儲存</p><h1>每日紀錄</h1></div><input aria-label="紀錄日期" type="date" value={date} onChange={(event) => onDate(event.target.value)} /></header>
+    <nav className="stage-tabs" aria-label="每日三階段">{stages.map((stage) => <button type="button" key={stage.id} className={activeStage === stage.id ? 'active' : ''} onClick={() => setActiveStage(stage.id)}><span>{stage.label}{stage.incomplete && <i aria-label="尚未完成" />}</span><small>{stage.sub}</small></button>)}</nav>
 
-    <nav className="record-tabs" aria-label="紀錄分類">
-      {tabs.map((tab) => <button type="button" key={tab.id} className={activeTab === tab.id ? 'active' : ''} aria-current={activeTab === tab.id ? 'page' : undefined} onClick={() => setActiveTab(tab.id)}>{tab.label}{tab.incomplete && <i aria-label="有未完成項目" />}</button>)}
-    </nav>
-
-    {activeTab === 'morning' && <div className="record-tab-panel">
-      <div className="tab-intro"><strong>起床後記錄</strong><p>體重填醒來後的數值；睡眠歸在醒來這一天。</p></div>
-      <Section title="晨間" missing={log.weightKg == null}>
-        <NumberField label="體重" value={log.weightKg} unit="kg" step={0.1} onChange={(weightKg) => onChange({ weightKg })} />
-        <div className="segmented"><button type="button" className={log.weightCondition === 'morning_fasted' ? 'selected' : ''} onClick={() => onChange({ weightCondition: 'morning_fasted' })}>晨起空腹</button><button type="button" className={log.weightCondition === 'other' ? 'selected' : ''} onClick={() => onChange({ weightCondition: 'other' })}>其他時間</button></div>
-        <NumberField label="腰圍" value={log.waistCm} unit="cm" step={0.1} onChange={(waistCm) => onChange({ waistCm })} />
-      </Section>
-      <Section title="前一晚睡眠" missing={log.sleepHours == null}>
-        <div className="sleep-context"><strong>{shortDate(previousDate)} 晚上 → {shortDate(currentDate)} 早上</strong><p>{date} 這筆紀錄，填寫的是醒來前一晚的睡眠。</p></div>
+    {activeStage === 'morning' && <div className="record-tab-panel">
+      <div className="tab-intro"><strong>早上約 20 秒</strong><p>體重、前一晚睡眠、排便與下肢恢復；腰圍不需要天天量。</p></div>
+      <Section title="今天早上的核心紀錄" missing={stages[0].incomplete}>
+        <NumberField label="晨間體重" value={log.weightKg} unit="kg" step={0.1} onChange={(weightKg) => onChange({ weightKg, weightCondition: 'morning_fasted' })} />
+        <div className="sleep-context"><strong>{shortDate(previousDate)} 晚上 → {shortDate(currentDate)} 早上</strong><p>睡眠歸在醒來這一天。</p></div>
         <div className="time-pair"><label>入睡時間<input type="time" value={log.sleepStartedAt ?? ''} onChange={(event) => updateSleepTime('sleepStartedAt', event.target.value)} /></label><label>醒來時間<input type="time" value={log.sleepEndedAt ?? ''} onChange={(event) => updateSleepTime('sleepEndedAt', event.target.value)} /></label></div>
-        {log.sleepStartedAt && log.sleepEndedAt && <p className="calculated-note">已依起訖時間自動計算；仍可在下方手動修正。</p>}
         <NumberField label="前一晚睡眠時間" value={log.sleepHours} unit="小時" step={0.25} onChange={(sleepHours) => onChange({ sleepHours })} />
-        <SelectScale label="前一晚睡眠品質" value={log.sleepQuality} onChange={(sleepQuality) => onChange({ sleepQuality: sleepQuality as DailyLog['sleepQuality'] })} />
+        <div className="field-block"><label>今天有排便嗎？</label><div className="segmented"><button type="button" className={log.bowelMovement === 'yes' ? 'selected' : ''} onClick={() => onChange({ bowelMovement: 'yes' })}>有</button><button type="button" className={log.bowelMovement === 'none' ? 'selected' : ''} onClick={() => onChange({ bowelMovement: 'none', bristolType: undefined })}>沒有</button></div></div>
+        {log.bowelMovement === 'yes' && <SelectScale label="Bristol 型態" max={7} value={log.bristolType} onChange={(bristolType) => onChange({ bristolType: bristolType as DailyLog['bristolType'] })} />}
+        <SelectScale label="下肢緊繃／疼痛（0 無、5 很明顯）" min={0} max={5} value={log.lowerLegTightness} onChange={(lowerLegTightness) => onChange({ lowerLegTightness: lowerLegTightness as DailyLog['lowerLegTightness'] })} />
+        {(log.lowerLegTightness ?? 0) >= 2 && <p className="recovery-inline">2：今天不補跑；3 以上：改走路或休息，不追活動數字。</p>}
+      </Section>
+      <Section title="早上進階選填" open={false}>
+        <SelectScale label="睡眠品質" value={log.sleepQuality} onChange={(sleepQuality) => onChange({ sleepQuality: sleepQuality as DailyLog['sleepQuality'] })} />
+        <NumberField label="腰圍（每週約2次）" value={log.waistCm} unit="cm" step={0.1} onChange={(waistCm) => onChange({ waistCm })} />
+        <label className="text-field">疼痛／緊繃備註<textarea rows={3} placeholder="位置、何時出現、是否影響走路…" value={log.painNotes ?? ''} onChange={(event) => onChange({ painNotes: event.target.value })} /></label>
       </Section>
     </div>}
 
-    {activeTab === 'activity' && <div className="record-tab-panel">
-      <div className="tab-intro"><strong>{isToday ? '今天仍在進行中' : '當日活動摘要'}</strong><p>{isToday ? '先記目前數字，外出或晚間運動後再回來更新即可。' : '可修正當天最後的 Apple Watch 或手動摘要數字。'}</p></div>
-      <div className="activity-live-card panel" aria-label="目前活動能量拆分">
-        <div className="activity-live-heading"><span>{isToday ? '目前計入活動能量' : '當日計入活動能量'}</span><small>{activityUpdatedLabel ? `${activityUpdatedLabel} 更新` : '尚未更新時間'}</small></div>
-        <strong>{activity.effectiveActiveKcal == null ? '—' : Math.round(activity.effectiveActiveKcal)}<small> kcal</small></strong>
-        <div className="activity-breakdown">
-          <span>Watch／摘要<b>{activity.baseActiveKcal == null ? '—' : Math.round(activity.baseActiveKcal)} kcal</b></span>
-          <span>運動明細小計<b>{Math.round(activity.workoutActiveKcal)} kcal</b></span>
-          <span className={activity.additionalWorkoutActiveKcal > 0 ? 'pending' : ''}>尚未反映、另外加入<b>+{Math.round(activity.additionalWorkoutActiveKcal)} kcal</b></span>
-        </div>
-        <p>Apple Watch 活動能量包含走路等日常活動，所以不一定等於運動明細小計。</p>
-      </div>
-      {activity.additionalWorkoutActiveKcal > 0 && <div className="activity-sync-note">
-        <div><strong>有 {Math.round(activity.additionalWorkoutActiveKcal)} kcal 待同步</strong><p>目前已暫加到總量。稍後 Watch 最新數字若已包含這些運動，再按右側按鈕避免重複。</p></div>
-        <button type="button" disabled={log.activeKcal == null} onClick={markPendingWorkoutsIncluded}>Watch 已包含</button>
-      </div>}
-      <Section title="目前活動快照" missing={activity.effectiveActiveKcal == null || log.restingKcal == null}>
-        <NumberField label="Watch 目前活動能量（截至現在）" value={log.activeKcal} unit="kcal" quick={[50, 100]} onChange={(activeKcal) => updateActivity({ activeKcal })} />
-        <NumberField label="Watch 目前靜態能量（截至現在）" value={log.restingKcal} unit="kcal" quick={[100]} onChange={(restingKcal) => updateActivity({ restingKcal })} />
-        <NumberField label="目前運動時間" value={log.exerciseMinutes} unit="分鐘" quick={[10, 15]} onChange={(exerciseMinutes) => updateActivity({ exerciseMinutes })} />
-        <NumberField label="目前步數" value={log.steps} unit="步" step={100} quick={[1000]} onChange={(steps) => updateActivity({ steps })} />
-        <NumberField label="目前距離" value={log.distanceKm} unit="km" step={0.1} onChange={(distanceKm) => updateActivity({ distanceKm })} />
-        <NumberField label="目前站立時數" value={log.standingHours} unit="小時" onChange={(standingHours) => updateActivity({ standingHours })} />
-        <NumberField label="平均運動心率" value={log.averageExerciseHeartRate} unit="bpm" onChange={(averageExerciseHeartRate) => updateActivity({ averageExerciseHeartRate })} />
+    {activeStage === 'food' && <div className="record-tab-panel">
+      <div className="tab-intro"><strong>白天隨吃隨記</strong><p>主要只看總熱量、蛋白質與白開水；其餘營養素放在進階區。</p></div>
+      <div className="food-core-summary panel"><div><span>已吃</span><strong>{Math.round(log.intakeKcal ?? 0)}<small> kcal</small></strong></div><div><span>蛋白質</span><strong>{Math.round(log.proteinG ?? 0)}<small> g</small></strong></div><div><span>白開水</span><strong>{Math.round(log.waterMl ?? 0)}<small> ml</small></strong></div></div>
+      <Section title="食物快捷模板"><p className="fine-print estimate-note">皆為可編輯估算值；品牌與烹調差異請依包裝修正。</p><FoodQuickActions log={log} templates={templates} onChange={onChange} /></Section>
+      <Section title="今日主要數字" missing={stages[1].incomplete}>
+        <NumberField label="今日已攝取" value={log.intakeKcal} unit="kcal" quick={[100, 250]} onChange={(intakeKcal) => updateFood({ intakeKcal })} />
+        <NumberField label="蛋白質" value={log.proteinG} unit="g" quick={[10, 20]} onChange={(proteinG) => updateFood({ proteinG })} />
+        <NumberField label="白開水" value={log.waterMl} unit="ml" step={250} quick={[250, 500]} onChange={(waterMl) => onChange({ waterMl })} />
       </Section>
-      <Section title="恢復指標" open={false}>
-        <NumberField label="靜息心率" value={log.restingHeartRate} unit="bpm" onChange={(restingHeartRate) => onChange({ restingHeartRate })} />
-        <NumberField label="心率變異度 HRV" value={log.heartRateVariabilityMs} unit="ms" onChange={(heartRateVariabilityMs) => onChange({ heartRateVariabilityMs })} />
-        <p className="fine-print">這些數值受量測時機與裝置影響，適合看長期趨勢，不做醫療判斷。</p>
-      </Section>
-      <Section title={`運動明細 ${workouts.length ? `· ${workouts.length} 筆 · ${workoutMinutes} 分` : ''}`}>
-        <div className="workout-list">{workouts.length === 0 ? <p className="empty">尚無運動明細。新增後可選擇是否立即累積到目前活動能量。</p> : workouts.map((workout) => <article key={workout.id} className="workout-card">
-          <div><span>{workoutLabels[workout.type]} · {workout.source === 'apple_watch' ? 'Apple Watch' : '手動'}</span><strong>{workout.title}</strong><small>{workout.durationMinutes} 分{workout.distanceKm != null ? ` · ${workout.distanceKm} km` : ''}{workout.activeKcal != null ? ` · ${workout.activeKcal} kcal` : ' · 熱量未填'}</small><em className={workout.activityKcalMode === 'add_to_daily_total' ? 'pending' : ''}>{workout.activityKcalMode === 'add_to_daily_total' ? `＋${workout.activeKcal ?? 0} kcal 已加入目前總量` : '已包含在 Watch／摘要，不重複加'}</em></div>
-          <div><button type="button" onClick={() => editWorkout(workout)}>編輯</button><button type="button" className="danger-text" onClick={() => deleteWorkout(workout.id)}>刪除</button></div>
-        </article>)}</div>
-        {!showWorkoutForm && <button type="button" className="primary add-detail-button" onClick={() => setShowWorkoutForm(true)}>＋ 新增運動明細</button>}
-        {showWorkoutForm && <div className="workout-form panel-inner">
-          <div className="form-title"><strong>{editingWorkoutId ? '編輯運動' : '新增運動'}</strong><span>儲存後會依下方選擇自動重算</span></div>
-          <label className="select-field">類型<select value={workoutDraft.type} onChange={(event) => { const type = event.target.value as WorkoutType; setWorkoutDraft({ ...workoutDraft, type, title: workoutLabels[type] }) }}>{Object.entries(workoutLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-          <label className="text-field">名稱<input value={workoutDraft.title} onChange={(event) => setWorkoutDraft({ ...workoutDraft, title: event.target.value })} /></label>
-          <label className="select-field">開始時間<input type="time" value={workoutDraft.startTime ?? ''} onChange={(event) => setWorkoutDraft({ ...workoutDraft, startTime: event.target.value || undefined })} /></label>
-          <div className="compact-field-grid">
-            <NumberField label="時長" value={workoutDraft.durationMinutes} unit="分" onChange={(durationMinutes) => setWorkoutDraft({ ...workoutDraft, durationMinutes: durationMinutes ?? 0 })} />
-            <NumberField label="活動能量" value={workoutDraft.activeKcal} unit="kcal" onChange={(activeKcal) => setWorkoutDraft({ ...workoutDraft, activeKcal })} />
-            <NumberField label="總能量" value={workoutDraft.totalKcal} unit="kcal" onChange={(totalKcal) => setWorkoutDraft({ ...workoutDraft, totalKcal })} />
-            <NumberField label="距離" value={workoutDraft.distanceKm} unit="km" step={0.1} onChange={(distanceKm) => setWorkoutDraft({ ...workoutDraft, distanceKm })} />
-            <NumberField label="平均心率" value={workoutDraft.averageHeartRate} unit="bpm" onChange={(averageHeartRate) => setWorkoutDraft({ ...workoutDraft, averageHeartRate })} />
-            <NumberField label="最高心率" value={workoutDraft.maxHeartRate} unit="bpm" onChange={(maxHeartRate) => setWorkoutDraft({ ...workoutDraft, maxHeartRate })} />
-          </div>
-          <SelectScale label="主觀強度 RPE" max={10} value={workoutDraft.perceivedExertion} onChange={(perceivedExertion) => setWorkoutDraft({ ...workoutDraft, perceivedExertion: perceivedExertion as WorkoutEntry['perceivedExertion'] })} />
-          {workoutDraft.type === 'strength' && <div className="strength-fields"><label className="text-field">肌群／動作<input placeholder="例如：腿、深蹲" value={workoutDraft.muscleGroup ?? ''} onChange={(event) => setWorkoutDraft({ ...workoutDraft, muscleGroup: event.target.value })} /></label><div className="compact-field-grid"><NumberField label="組數" value={workoutDraft.sets} onChange={(sets) => setWorkoutDraft({ ...workoutDraft, sets })} /><NumberField label="每組次數" value={workoutDraft.reps} onChange={(reps) => setWorkoutDraft({ ...workoutDraft, reps })} /><NumberField label="重量" value={workoutDraft.weightKg} unit="kg" step={0.5} onChange={(weightKg) => setWorkoutDraft({ ...workoutDraft, weightKg })} /><NumberField label="保留次數 RIR" value={workoutDraft.rir} max={10} onChange={(rir) => setWorkoutDraft({ ...workoutDraft, rir })} /></div></div>}
-          <label className="select-field">來源<select value={workoutDraft.source} onChange={(event) => { const source = event.target.value as WorkoutEntry['source']; setWorkoutDraft({ ...workoutDraft, source, activityKcalMode: source === 'apple_watch' ? 'included_in_daily_total' : 'add_to_daily_total' }) }}><option value="apple_watch">Apple Watch</option><option value="manual">手動紀錄</option></select></label>
-          <div className="activity-mode-field"><label>這筆活動能量如何計入？</label><div className="segmented">
-            <button type="button" className={workoutDraft.activityKcalMode !== 'add_to_daily_total' ? 'selected' : ''} onClick={() => setWorkoutDraft({ ...workoutDraft, activityKcalMode: 'included_in_daily_total' })}>已包含在 Watch</button>
-            <button type="button" className={workoutDraft.activityKcalMode === 'add_to_daily_total' ? 'selected' : ''} onClick={() => setWorkoutDraft({ ...workoutDraft, activityKcalMode: 'add_to_daily_total' })}>尚未包含，加入總量</button>
-          </div><p>{workoutDraft.activityKcalMode === 'add_to_daily_total' ? '這筆活動熱量會立即加到目前總量；Watch 之後同步時可再標記為已包含。' : '只保留運動明細，不再加一次，避免和 Watch 總量重複。'}</p></div>
-          <label className="text-field">備註<textarea rows={2} value={workoutDraft.notes ?? ''} onChange={(event) => setWorkoutDraft({ ...workoutDraft, notes: event.target.value })} /></label>
-          {workoutDraft.activityKcalMode === 'add_to_daily_total' && workoutDraft.activeKcal == null && <p className="field-error">要加入目前總量，請先填寫活動能量。</p>}
-          <div className="form-actions"><button type="button" className="primary" disabled={!workoutDraft.title.trim() || workoutDraft.durationMinutes <= 0 || (workoutDraft.activityKcalMode === 'add_to_daily_total' && workoutDraft.activeKcal == null)} onClick={saveWorkout}>{editingWorkoutId ? '儲存修改' : '加入運動'}</button><button type="button" onClick={() => { setWorkoutDraft(blankWorkout()); setEditingWorkoutId(undefined); setShowWorkoutForm(false) }}>取消</button></div>
-        </div>}
-        {(log.slowJogMinutes != null || log.slowJogActiveKcal != null) && <div className="legacy-note">舊版超慢跑：{log.slowJogMinutes ?? 0} 分 · {log.slowJogActiveKcal ?? 0} kcal（保留舊紀錄，不重複計算）</div>}
-      </Section>
-    </div>}
-
-    {activeTab === 'food' && <div className="record-tab-panel">
-      <div className="nutrition-overview panel">
-        <div><span>熱量</span><strong>{log.intakeKcal ?? '—'}<small> kcal</small></strong></div><div><span>蛋白質</span><strong>{log.proteinG ?? '—'}<small> g</small></strong></div><div><span>碳水</span><strong>{log.carbsG ?? '—'}<small> g</small></strong></div><div><span>脂肪</span><strong>{log.fatG ?? '—'}<small> g</small></strong></div><div><span>纖維</span><strong>{log.fiberG ?? '—'}<small> g</small></strong></div><div><span>鈉</span><strong>{log.sodiumMg ?? '—'}<small> mg</small></strong></div>
-      </div>
-      <Section title="飲食" missing={log.intakeKcal == null || log.proteinG == null}>
-        <div className="segmented"><button type="button" className={log.mealMode !== 'detailed' ? 'selected' : ''} onClick={() => onChange({ mealMode: 'quick' })}>快速總量</button><button type="button" className={log.mealMode === 'detailed' ? 'selected' : ''} onClick={() => onChange({ mealMode: 'detailed' })}>詳細餐點</button></div>
-        {log.mealMode !== 'detailed' ? <div className="compact-field-grid nutrition-fields">
-          <NumberField label="今日總熱量" value={log.intakeKcal} unit="kcal" quick={[100, 250]} onChange={(intakeKcal) => onChange({ intakeKcal })} />
-          <NumberField label="蛋白質" value={log.proteinG} unit="g" quick={[10, 20]} onChange={(proteinG) => onChange({ proteinG })} />
-          <NumberField label="碳水" value={log.carbsG} unit="g" onChange={(carbsG) => onChange({ carbsG })} />
-          <NumberField label="脂肪" value={log.fatG} unit="g" onChange={(fatG) => onChange({ fatG })} />
-          <NumberField label="纖維" value={log.fiberG} unit="g" onChange={(fiberG) => onChange({ fiberG })} />
-          <NumberField label="鈉" value={log.sodiumMg} unit="mg" step={10} onChange={(sodiumMg) => onChange({ sodiumMg })} />
-        </div> : <div className="detailed-meals">
-          <p className="fine-print estimate-note">預設營養值為一般估算；品牌、烹調方式差異很大，請以包裝標示或實際秤重為準。</p>
-          <MealEditor title="早餐" lines={details.breakfast} onChange={(lines) => setMeal('breakfast', lines)} />
-          <MealEditor title="午餐" lines={details.lunch} onChange={(lines) => setMeal('lunch', lines)} />
-          <MealEditor title="晚餐" lines={details.dinner} onChange={(lines) => setMeal('dinner', lines)} />
-          <MealEditor title="點心／晚間" lines={details.evening} onChange={(lines) => setMeal('evening', lines)} />
-          <details className="ramen panel-inner"><summary>泡麵快速模板</summary><label className="toggle-row"><span>今天有吃泡麵</span><input type="checkbox" checked={details.ramen.enabled} onChange={(event) => updateDetails({ ...details, ramen: { ...details.ramen, enabled: event.target.checked } })} /></label>{details.ramen.enabled && <>
-            <div className="compact-field-grid nutrition-fields"><NumberField label="包裝整份熱量" value={details.ramen.packageKcal} unit="kcal" onChange={(packageKcal) => updateDetails({ ...details, ramen: { ...details.ramen, packageKcal: packageKcal ?? 0 } })} /><NumberField label="包裝蛋白質" value={details.ramen.packageProteinG} unit="g" onChange={(packageProteinG) => updateDetails({ ...details, ramen: { ...details.ramen, packageProteinG } })} /><NumberField label="包裝碳水" value={details.ramen.packageCarbsG} unit="g" onChange={(packageCarbsG) => updateDetails({ ...details, ramen: { ...details.ramen, packageCarbsG } })} /><NumberField label="包裝脂肪" value={details.ramen.packageFatG} unit="g" onChange={(packageFatG) => updateDetails({ ...details, ramen: { ...details.ramen, packageFatG } })} /><NumberField label="包裝鈉" value={details.ramen.packageSodiumMg} unit="mg" step={10} onChange={(packageSodiumMg) => updateDetails({ ...details, ramen: { ...details.ramen, packageSodiumMg } })} /></div>
-            {(['noodleRatio', 'seasoningRatio', 'oilRatio'] as const).map((key) => <label className="select-field" key={key}>{key === 'noodleRatio' ? '麵體比例' : key === 'seasoningRatio' ? '調味包比例' : '油包比例'}<select value={details.ramen[key]} onChange={(event) => updateDetails({ ...details, ramen: { ...details.ramen, [key]: Number(event.target.value) } })}><option value={0.5}>1/2</option><option value={2 / 3}>2/3</option><option value={1}>整份</option></select></label>)}
-            <label className="toggle-row"><span>有喝湯</span><input type="checkbox" checked={details.ramen.drankSoup} onChange={(event) => updateDetails({ ...details, ramen: { ...details.ramen, drankSoup: event.target.checked } })} /></label>
-            <NumberField label="加雞胸肉" value={details.ramen.chickenG} unit="g" step={10} onChange={(chickenG) => updateDetails({ ...details, ramen: { ...details.ramen, chickenG: chickenG ?? 0 } })} />
-            <NumberField label="加蔬菜" value={details.ramen.vegetablesG} unit="g" step={10} onChange={(vegetablesG) => updateDetails({ ...details, ramen: { ...details.ramen, vegetablesG: vegetablesG ?? 0 } })} />
-          </>}</details>
-          <div className="meal-total"><span>詳細餐點自動加總</span><strong>{log.intakeKcal ?? 0} kcal · {log.proteinG ?? 0} g 蛋白質</strong></div>
-        </div>}
-        <div className="check-grid">{[
-          ['breakfastPlanCompleted', '早餐計畫'], ['lunchPlateCompleted', '午餐餐盤'], ['dinnerPlateCompleted', '晚餐餐盤'], ['soyChiaCompleted', '豆漿奇亞籽']
-        ].map(([key, label]) => <label key={key}><input type="checkbox" checked={Boolean(log[key as keyof DailyLog])} onChange={(event) => onChange({ [key]: event.target.checked })} />{label}</label>)}</div>
-        <label className="toggle-row"><span>高鹽餐</span><input type="checkbox" checked={Boolean(log.highSaltMeal)} onChange={(event) => onChange({ highSaltMeal: event.target.checked })} /></label>
+      <Section title="今日餐點" open={false}><MealEditor title="早餐" lines={details.breakfast} onChange={(lines) => setMeal('breakfast', lines)} /><MealEditor title="午餐" lines={details.lunch} onChange={(lines) => setMeal('lunch', lines)} /><MealEditor title="晚餐" lines={details.dinner} onChange={(lines) => setMeal('dinner', lines)} /><MealEditor title="點心／晚間" lines={details.evening} onChange={(lines) => setMeal('evening', lines)} /></Section>
+      <Section title="進階營養" open={false}>
+        <div className="compact-field-grid nutrition-fields"><NumberField label="碳水" value={log.carbsG} unit="g" onChange={(carbsG) => updateFood({ carbsG })} /><NumberField label="脂肪" value={log.fatG} unit="g" onChange={(fatG) => updateFood({ fatG })} /><NumberField label="纖維" value={log.fiberG} unit="g" onChange={(fiberG) => updateFood({ fiberG })} /><NumberField label="鈉" value={log.sodiumMg} unit="mg" step={10} onChange={(sodiumMg) => updateFood({ sodiumMg })} /></div>
+        <details className="ramen panel-inner"><summary>泡麵雞胸版詳細比例</summary><label className="toggle-row"><span>今天有吃泡麵</span><input type="checkbox" checked={details.ramen.enabled} onChange={(event) => updateDetails({ ...details, ramen: { ...details.ramen, enabled: event.target.checked } })} /></label>{details.ramen.enabled && <><div className="compact-field-grid nutrition-fields"><NumberField label="包裝整份熱量" value={details.ramen.packageKcal} unit="kcal" onChange={(packageKcal) => updateDetails({ ...details, ramen: { ...details.ramen, packageKcal: packageKcal ?? 0 } })} /><NumberField label="包裝蛋白質" value={details.ramen.packageProteinG} unit="g" onChange={(packageProteinG) => updateDetails({ ...details, ramen: { ...details.ramen, packageProteinG } })} /><NumberField label="包裝碳水" value={details.ramen.packageCarbsG} unit="g" onChange={(packageCarbsG) => updateDetails({ ...details, ramen: { ...details.ramen, packageCarbsG } })} /><NumberField label="包裝脂肪" value={details.ramen.packageFatG} unit="g" onChange={(packageFatG) => updateDetails({ ...details, ramen: { ...details.ramen, packageFatG } })} /><NumberField label="包裝鈉" value={details.ramen.packageSodiumMg} unit="mg" onChange={(packageSodiumMg) => updateDetails({ ...details, ramen: { ...details.ramen, packageSodiumMg } })} /></div>{(['noodleRatio', 'seasoningRatio', 'oilRatio'] as const).map((key) => <label className="select-field" key={key}>{key === 'noodleRatio' ? '麵體比例' : key === 'seasoningRatio' ? '調味包比例' : '油包比例'}<select value={details.ramen[key]} onChange={(event) => updateDetails({ ...details, ramen: { ...details.ramen, [key]: Number(event.target.value) } })}><option value={0.5}>1/2</option><option value={2 / 3}>2/3</option><option value={1}>整份</option></select></label>)}<label className="toggle-row"><span>有喝湯</span><input type="checkbox" checked={details.ramen.drankSoup} onChange={(event) => updateDetails({ ...details, ramen: { ...details.ramen, drankSoup: event.target.checked } })} /></label><NumberField label="加雞胸肉" value={details.ramen.chickenG} unit="g" step={10} onChange={(chickenG) => updateDetails({ ...details, ramen: { ...details.ramen, chickenG: chickenG ?? 0 } })} /><NumberField label="加蔬菜" value={details.ramen.vegetablesG} unit="g" step={10} onChange={(vegetablesG) => updateDetails({ ...details, ramen: { ...details.ramen, vegetablesG: vegetablesG ?? 0 } })} /></>}</details>
         <label className="toggle-row"><span>已補充肌酸</span><input type="checkbox" checked={Boolean(log.creatineTaken)} onChange={(event) => onChange({ creatineTaken: event.target.checked })} /></label>
-        <label className="select-field">晚餐完成時間<input type="time" value={log.dinnerFinishedAt ?? ''} onChange={(event) => onChange({ dinnerFinishedAt: event.target.value })} /></label>
+        <label className="select-field">晚餐完成時間<input type="time" value={log.dinnerFinishedAt ?? ''} onChange={(event) => updateFood({ dinnerFinishedAt: event.target.value })} /></label>
       </Section>
-
       <Section title="自訂食物資料庫" open={false}>
-        <p className="fine-print">建立後可加到任一餐。加入時會複製當下營養值，之後修改資料庫不會改變舊紀錄。</p>
-        <div className="food-form">
-          <input aria-label="食物名稱" placeholder="食物名稱" value={newFood.name} onChange={(event) => setNewFood({ ...newFood, name: event.target.value })} />
-          <select aria-label="計算基準" value={newFood.basis} onChange={(event) => setNewFood({ ...newFood, basis: event.target.value as CustomFood['basis'] })}><option value="100g">每 100g</option><option value="serving">每份</option></select>
-          {([['kcal', '熱量 kcal'], ['proteinG', '蛋白質 g'], ['carbsG', '碳水 g'], ['fatG', '脂肪 g'], ['fiberG', '纖維 g'], ['sodiumMg', '鈉 mg'], ['defaultAmount', '預設份量']] as const).map(([key, placeholder]) => <input key={key} aria-label={placeholder} inputMode="decimal" type="number" min="0" placeholder={placeholder} value={newFood[key] || ''} onChange={(event) => setNewFood({ ...newFood, [key]: Number(event.target.value) })} />)}
-          <button type="button" className="primary" disabled={!newFood.name.trim()} onClick={saveFoodEntry}>{editingFoodId ? '儲存食物修改' : '新增食物'}</button>
-          {editingFoodId && <button type="button" onClick={() => { setEditingFoodId(undefined); setNewFood(blankFood()) }}>取消編輯</button>}
-        </div>
-        <div className="food-list">{foods.length === 0 ? <p className="empty">尚未建立自訂食物。</p> : foods.map((food) => <article key={food.id}><span><strong>{food.name}</strong><small>{food.kcal} kcal · P {food.proteinG} g · C {food.carbsG ?? 0} g · F {food.fatG ?? 0} g</small></span><div className="food-actions"><select aria-label={`${food.name}加入餐次`} defaultValue="lunch" id={`meal-${food.id}`}><option value="breakfast">早餐</option><option value="lunch">午餐</option><option value="dinner">晚餐</option><option value="evening">點心</option></select><button type="button" onClick={() => { const select = document.getElementById(`meal-${food.id}`) as HTMLSelectElement | null; addCustom(food, (select?.value ?? 'lunch') as MealKey) }}>加入</button><button type="button" onClick={() => editFood(food)}>編輯</button><button type="button" className="danger-text" onClick={() => onDeleteFood(food.id)}>刪除</button></div></article>)}</div>
+        <div className="food-form"><input aria-label="食物名稱" placeholder="食物名稱" value={newFood.name} onChange={(event) => setNewFood({ ...newFood, name: event.target.value })} /><select aria-label="計算基準" value={newFood.basis} onChange={(event) => setNewFood({ ...newFood, basis: event.target.value as CustomFood['basis'] })}><option value="100g">每100g</option><option value="serving">每份</option></select>{([['kcal', '熱量 kcal'], ['proteinG', '蛋白質 g'], ['carbsG', '碳水 g'], ['fatG', '脂肪 g'], ['fiberG', '纖維 g'], ['sodiumMg', '鈉 mg'], ['defaultAmount', '預設份量']] as const).map(([key, label]) => <input key={key} aria-label={label} type="number" min="0" placeholder={label} value={newFood[key] || ''} onChange={(event) => setNewFood({ ...newFood, [key]: Number(event.target.value) })} />)}<button type="button" className="primary" disabled={!newFood.name.trim()} onClick={saveFoodEntry}>{editingFoodId ? '儲存食物修改' : '新增食物'}</button></div>
+        <div className="food-list">{foods.length === 0 ? <p className="empty">尚未建立自訂食物。</p> : foods.map((food) => <article key={food.id}><span><strong>{food.name}</strong><small>{food.kcal} kcal · P {food.proteinG}g</small></span><div className="food-actions"><select aria-label={`${food.name}加入餐次`} defaultValue="lunch" id={`meal-${food.id}`}><option value="breakfast">早餐</option><option value="lunch">午餐</option><option value="dinner">晚餐</option><option value="evening">點心</option></select><button type="button" onClick={() => { const select = document.getElementById(`meal-${food.id}`) as HTMLSelectElement | null; addCustom(food, (select?.value ?? 'lunch') as MealKey) }}>加入</button><button type="button" onClick={() => editFood(food)}>編輯</button><button type="button" className="danger-text" onClick={() => onDeleteFood(food.id)}>刪除</button></div></article>)}</div>
       </Section>
     </div>}
 
-    {activeTab === 'water' && <div className="record-tab-panel"><Section title="水分" missing={log.waterMl == null}><NumberField label="白開水" value={log.waterMl} unit="ml" step={250} quick={[250, 500]} onChange={(waterMl) => onChange({ waterMl })} /></Section></div>}
-
-    {activeTab === 'condition' && <div className="record-tab-panel">
-      <Section title="排便"><div className="segmented"><button type="button" className={log.bowelMovement === 'yes' ? 'selected' : ''} onClick={() => onChange({ bowelMovement: 'yes' })}>有排便</button><button type="button" className={log.bowelMovement !== 'yes' ? 'selected' : ''} onClick={() => onChange({ bowelMovement: 'none', bristolType: undefined })}>沒有</button></div>{log.bowelMovement === 'yes' && <SelectScale label="Bristol 型態" max={7} value={log.bristolType} onChange={(bristolType) => onChange({ bristolType: bristolType as DailyLog['bristolType'] })} />}</Section>
-      <Section title="身體感受"><SelectScale label="飢餓程度" value={log.hungerLevel} onChange={(hungerLevel) => onChange({ hungerLevel: hungerLevel as DailyLog['hungerLevel'] })} /><SelectScale label="疲勞程度" value={log.fatigueLevel} onChange={(fatigueLevel) => onChange({ fatigueLevel: fatigueLevel as DailyLog['fatigueLevel'] })} /></Section>
-      <Section title="備註"><textarea aria-label="備註" rows={4} placeholder="今天的感受、飲食或其他觀察…" value={log.notes ?? ''} onChange={(event) => onChange({ notes: event.target.value })} /></Section>
+    {activeStage === 'evening' && <div className="record-tab-panel">
+      <div className="tab-intro"><strong>晚上約 30 秒</strong><p>抄入 Watch 四個數字、記錄感受，再完成今日結算。</p></div>
+      {log.needsRefinalization && !log.dayFinalized && <div className="needs-refinalize">資料已修改，請確認最新數字後重新結算。</div>}
+      <Section title="Watch 與活動" missing={eveningMissing}>
+        <NumberField label="Watch 活動能量" value={log.activeKcal} unit="kcal" quick={[50, 100]} onChange={(activeKcal) => updateActivity({ activeKcal })} />
+        <NumberField label="Watch 靜態能量" value={log.restingKcal} unit="kcal" quick={[100]} onChange={(restingKcal) => updateActivity({ restingKcal })} />
+        <NumberField label="運動分鐘" value={log.exerciseMinutes} unit="分鐘" quick={[10, 15]} onChange={(exerciseMinutes) => updateActivity({ exerciseMinutes })} />
+        <NumberField label="步數" value={log.steps} unit="步" step={100} quick={[1000]} onChange={(steps) => updateActivity({ steps })} />
+      </Section>
+      <Section title="今晚身體感受" missing={log.hungerLevel == null || log.fatigueLevel == null || log.highSaltMeal == null}>
+        <SelectScale label="飢餓程度" value={log.hungerLevel} onChange={(hungerLevel) => onChange({ hungerLevel: hungerLevel as DailyLog['hungerLevel'] })} />
+        <SelectScale label="疲勞程度" value={log.fatigueLevel} onChange={(fatigueLevel) => onChange({ fatigueLevel: fatigueLevel as DailyLog['fatigueLevel'] })} />
+        <div className="field-block"><label>今天有高鹽餐嗎？</label><div className="segmented"><button type="button" className={log.highSaltMeal === true ? 'selected' : ''} onClick={() => onChange({ highSaltMeal: true })}>有</button><button type="button" className={log.highSaltMeal === false ? 'selected' : ''} onClick={() => onChange({ highSaltMeal: false })}>沒有</button></div></div>
+      </Section>
+      <Section title="活動進階紀錄" open={false}>
+        <div className="compact-field-grid"><NumberField label="距離" value={log.distanceKm} unit="km" step={0.1} onChange={(distanceKm) => updateActivity({ distanceKm })} /><NumberField label="站立時數" value={log.standingHours} unit="小時" onChange={(standingHours) => updateActivity({ standingHours })} /><NumberField label="平均運動心率" value={log.averageExerciseHeartRate} unit="bpm" onChange={(averageExerciseHeartRate) => updateActivity({ averageExerciseHeartRate })} /><NumberField label="靜息心率" value={log.restingHeartRate} unit="bpm" onChange={(restingHeartRate) => onChange({ restingHeartRate })} /><NumberField label="HRV" value={log.heartRateVariabilityMs} unit="ms" onChange={(heartRateVariabilityMs) => onChange({ heartRateVariabilityMs })} /></div>
+        <div className="workout-list">{workouts.length === 0 ? <p className="empty">個別運動明細為選填。</p> : workouts.map((workout) => <article key={workout.id} className="workout-card"><div><span>{workoutLabels[workout.type]}</span><strong>{workout.title}</strong><small>{workout.durationMinutes} 分{workout.distanceKm != null ? ` · ${workout.distanceKm}km` : ''}</small></div><div><button type="button" onClick={() => editWorkout(workout)}>編輯</button><button type="button" className="danger-text" onClick={() => updateActivity({ workouts: workouts.filter((item) => item.id !== workout.id) })}>刪除</button></div></article>)}</div>
+        {!showWorkoutForm && <button type="button" className="add-detail-button" onClick={() => setShowWorkoutForm(true)}>＋ 新增選填運動明細</button>}
+        {showWorkoutForm && <div className="workout-form panel-inner"><div className="form-title"><strong>{editingWorkoutId ? '編輯運動' : '新增運動'}</strong><span>普通紀錄只需類型與時長</span></div><label className="select-field">類型<select value={workoutDraft.type} onChange={(event) => { const type = event.target.value as WorkoutType; setWorkoutDraft({ ...workoutDraft, type, title: workoutLabels[type] }) }}>{Object.entries(workoutLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><NumberField label="時長" value={workoutDraft.durationMinutes} unit="分" onChange={(durationMinutes) => setWorkoutDraft({ ...workoutDraft, durationMinutes: durationMinutes ?? 0 })} />
+          <details className="panel-inner workout-advanced"><summary>更多運動細節（選填）</summary><label className="text-field">名稱<input value={workoutDraft.title} onChange={(event) => setWorkoutDraft({ ...workoutDraft, title: event.target.value })} /></label><label className="select-field">開始時間<input type="time" value={workoutDraft.startTime ?? ''} onChange={(event) => setWorkoutDraft({ ...workoutDraft, startTime: event.target.value || undefined })} /></label><div className="compact-field-grid"><NumberField label="活動能量" value={workoutDraft.activeKcal} unit="kcal" onChange={(activeKcal) => setWorkoutDraft({ ...workoutDraft, activeKcal })} /><NumberField label="總能量" value={workoutDraft.totalKcal} unit="kcal" onChange={(totalKcal) => setWorkoutDraft({ ...workoutDraft, totalKcal })} /><NumberField label="距離" value={workoutDraft.distanceKm} unit="km" step={0.1} onChange={(distanceKm) => setWorkoutDraft({ ...workoutDraft, distanceKm })} /><NumberField label="平均心率" value={workoutDraft.averageHeartRate} unit="bpm" onChange={(averageHeartRate) => setWorkoutDraft({ ...workoutDraft, averageHeartRate })} /><NumberField label="最高心率" value={workoutDraft.maxHeartRate} unit="bpm" onChange={(maxHeartRate) => setWorkoutDraft({ ...workoutDraft, maxHeartRate })} /></div><SelectScale label="主觀強度 RPE" max={10} value={workoutDraft.perceivedExertion} onChange={(perceivedExertion) => setWorkoutDraft({ ...workoutDraft, perceivedExertion: perceivedExertion as WorkoutEntry['perceivedExertion'] })} />{workoutDraft.type === 'strength' && <div className="compact-field-grid"><label className="text-field">肌群／動作<input value={workoutDraft.muscleGroup ?? ''} onChange={(event) => setWorkoutDraft({ ...workoutDraft, muscleGroup: event.target.value })} /></label><NumberField label="組數" value={workoutDraft.sets} onChange={(sets) => setWorkoutDraft({ ...workoutDraft, sets })} /><NumberField label="每組次數" value={workoutDraft.reps} onChange={(reps) => setWorkoutDraft({ ...workoutDraft, reps })} /><NumberField label="重量" value={workoutDraft.weightKg} unit="kg" onChange={(weightKg) => setWorkoutDraft({ ...workoutDraft, weightKg })} /><NumberField label="RIR" value={workoutDraft.rir} onChange={(rir) => setWorkoutDraft({ ...workoutDraft, rir })} /></div>}<label className="text-field">備註<textarea rows={2} value={workoutDraft.notes ?? ''} onChange={(event) => setWorkoutDraft({ ...workoutDraft, notes: event.target.value })} /></label></details>
+          <details className="manual-override"><summary>手動活動熱量覆寫</summary><p>只有確定這筆活動不在 Watch 每日活動能量中，才可額外加入。</p><div className="segmented"><button type="button" className={workoutDraft.activityKcalMode !== 'add_to_daily_total' ? 'selected' : ''} onClick={() => setWorkoutDraft({ ...workoutDraft, activityKcalMode: 'included_in_daily_total' })}>預設：不再加總</button><button type="button" className={workoutDraft.activityKcalMode === 'add_to_daily_total' ? 'selected' : ''} onClick={() => setWorkoutDraft({ ...workoutDraft, activityKcalMode: 'add_to_daily_total' })}>確定未包含，額外加入</button></div></details>
+          {workoutDraft.activityKcalMode === 'add_to_daily_total' && workoutDraft.activeKcal == null && <p className="field-error">額外加入前必須填活動能量。</p>}<div className="form-actions"><button type="button" className="primary" disabled={workoutDraft.durationMinutes <= 0 || (workoutDraft.activityKcalMode === 'add_to_daily_total' && workoutDraft.activeKcal == null)} onClick={saveWorkout}>{editingWorkoutId ? '儲存修改' : '加入運動'}</button><button type="button" onClick={() => { setWorkoutDraft(blankWorkout()); setEditingWorkoutId(undefined); setShowWorkoutForm(false) }}>取消</button></div></div>}
+      </Section>
+      <Section title="今日備註" open={false}><textarea aria-label="今日備註" rows={4} value={log.notes ?? ''} onChange={(event) => onChange({ notes: event.target.value })} /></Section>
+      <div className={`finalize-card panel ${log.dayFinalized ? 'done' : ''}`}><div><span>{log.dayFinalized ? '今日已結算' : '今日尚未結算'}</span><strong>{log.dayFinalized ? `最終推估赤字 ${Math.round(finalDeficit ?? 0)} kcal` : '確認資料後完成今天'}</strong><p>{log.dayFinalized ? `推估總消耗 ${Math.round(finalTdee ?? 0)} kcal；Watch 與熱量皆為估算。` : eveningMissing ? '仍有晚間必填項目尚未完成。' : '完成後才會計算今日最終推估赤字。'}</p></div><button type="button" className="primary" disabled={eveningMissing || log.dayFinalized} onClick={() => onChange({ dayFinalized: true, finalizedAt: new Date().toISOString(), needsRefinalization: false })}>{log.dayFinalized ? '結算完成' : '完成今日結算'}</button></div>
     </div>}
-    <div className={`record-save-bar ${saveState}`} role="status" aria-live="polite">
-      <div><i /><span><strong>{saveState === 'saving' ? '儲存中…' : saveState === 'error' ? '儲存失敗' : '已自動儲存'}</strong><small>{saveState === 'error' ? '請不要關閉頁面，重試修改一次' : '每次修改都已保存，不需另外按儲存'}</small></span></div>
-      <button type="button" className="primary" disabled={saveState === 'saving' || saveState === 'error'} onClick={onDone}>完成紀錄，回首頁</button>
-    </div>
+
+    <div className={`record-save-bar ${saveState}`} role="status" aria-live="polite"><div><i /><span><strong>{saveState === 'saving' ? '儲存中…' : saveState === 'error' ? '儲存失敗' : '已自動儲存'}</strong><small>{saveState === 'error' ? '請重試修改一次' : '每次修改都已保存'}</small></span></div><button type="button" className="primary" disabled={saveState !== 'saved'} onClick={onDone}>完成這一段，回首頁</button></div>
   </section>
 }

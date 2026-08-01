@@ -1,9 +1,11 @@
-import type { BackupPayload, ChallengeSettings, CustomFood, DailyLog, MealDetails, MealLine, WorkoutEntry } from './types'
+import type { BackupPayload, ChallengeSettings, CustomFood, DailyLog, FoodTemplate, MealDetails, MealLine, WorkoutEntry } from './types'
 
 const isNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
 const isNonNegative = (value: unknown): value is number => isNumber(value) && value >= 0
 const isDate = (value: unknown) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
 const optionalNonNegative = (value: unknown) => value == null || isNonNegative(value)
+const isTimestamp = (value: unknown) => typeof value === 'string' && Number.isFinite(Date.parse(value))
+const optionalTimestamp = (value: unknown) => value == null || isTimestamp(value)
 
 const isValidMealLine = (value: unknown): value is MealLine => {
   if (!value || typeof value !== 'object') return false
@@ -48,6 +50,16 @@ const isValidFood = (value: unknown): value is CustomFood => {
     ['carbsG', 'fatG', 'fiberG', 'sodiumMg'].every((field) => optionalNonNegative(item[field])) && isNonNegative(item.defaultAmount)
 }
 
+const isValidFoodTemplate = (value: unknown): value is FoodTemplate => {
+  if (!value || typeof value !== 'object') return false
+  const item = value as Record<string, unknown>
+  return typeof item.id === 'string' && typeof item.name === 'string' && item.name.length > 0 && item.name.length <= 160 &&
+    typeof item.description === 'string' && item.description.length <= 500 &&
+    ['breakfast', 'lunch', 'dinner', 'evening'].includes(String(item.meal)) &&
+    (item.quick == null || typeof item.quick === 'boolean') &&
+    ['kcal', 'proteinG', 'carbsG', 'fatG', 'fiberG', 'sodiumMg'].every((field) => isNonNegative(item[field]))
+}
+
 export const isValidSettings = (value: unknown): value is ChallengeSettings => {
   if (!value || typeof value !== 'object') return false
   const item = value as Record<string, unknown>
@@ -59,6 +71,7 @@ export const isValidSettings = (value: unknown): value is ChallengeSettings => {
     isNumber(item.waterMinimumMl) && isNumber(item.waterMaximumMl) &&
     isNumber(item.sleepMinimumHours) && isNumber(item.stepsMinimum) && isNumber(item.stepsMaximum) &&
     isNumber(item.exerciseMinutesMinimum) && isNumber(item.exerciseMinutesMaximum) &&
+    (item.foodTemplates == null || (Array.isArray(item.foodTemplates) && item.foodTemplates.every(isValidFoodTemplate))) &&
     (item.theme === 'dark' || item.theme === 'light') && typeof item.onboarded === 'boolean'
 }
 
@@ -68,7 +81,12 @@ export const isValidLog = (value: unknown): value is DailyLog => {
   if (typeof item.id !== 'string' || !isDate(item.date) || typeof item.createdAt !== 'string' || typeof item.updatedAt !== 'string') return false
   const numericFields = ['weightKg', 'waistCm', 'activeKcal', 'restingKcal', 'exerciseMinutes', 'slowJogMinutes', 'slowJogActiveKcal', 'averageExerciseHeartRate', 'steps', 'distanceKm', 'standingHours', 'restingHeartRate', 'heartRateVariabilityMs', 'intakeKcal', 'proteinG', 'carbsG', 'fatG', 'fiberG', 'sodiumMg', 'waterMl', 'sleepHours']
   return numericFields.every((field) => optionalNonNegative(item[field])) &&
-    (item.activityUpdatedAt == null || (typeof item.activityUpdatedAt === 'string' && Number.isFinite(Date.parse(item.activityUpdatedAt)))) &&
+    optionalTimestamp(item.activityUpdatedAt) && optionalTimestamp(item.foodUpdatedAt) && optionalTimestamp(item.finalizedAt) &&
+    (item.dayFinalized == null || typeof item.dayFinalized === 'boolean') &&
+    (item.needsRefinalization == null || typeof item.needsRefinalization === 'boolean') &&
+    (item.lowerLegTightness == null || (isNumber(item.lowerLegTightness) && Number.isInteger(item.lowerLegTightness) && item.lowerLegTightness >= 0 && item.lowerLegTightness <= 5)) &&
+    (item.painNotes == null || (typeof item.painNotes === 'string' && item.painNotes.length <= 5000)) &&
+    (item.bowelMovement == null || ['unrecorded', 'none', 'yes'].includes(String(item.bowelMovement))) &&
     (item.workouts == null || (Array.isArray(item.workouts) && item.workouts.every(isValidWorkout))) &&
     (item.mealDetails == null || isValidMealDetails(item.mealDetails))
 }

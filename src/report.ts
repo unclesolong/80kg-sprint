@@ -1,4 +1,4 @@
-import { average, effectiveActiveKcal, localDateString } from './calculations'
+import { average, dailyDeficit, effectiveActiveKcal, finalizedCumulativeDeficit, localDateString } from './calculations'
 import type { ChallengeSettings, DailyLog } from './types'
 
 const REPORT_WIDTH = 1240
@@ -23,6 +23,7 @@ export interface ReportSummary {
   days: ReportDay[]
   recordedDays: number
   completeDays: number
+  finalizedDays: number
   completenessRate: number
   firstWeightKg?: number
   latestWeightKg?: number
@@ -33,6 +34,8 @@ export interface ReportSummary {
   averageWaterMl?: number
   averageSleepHours?: number
   averageSteps?: number
+  averageFinalDeficitKcal?: number
+  cumulativeFinalDeficitKcal: number
 }
 
 const minDate = (a: string, b: string) => (a < b ? a : b)
@@ -92,6 +95,7 @@ export const buildReportSummary = (
   const latestWeightKg = weights.at(-1)?.weightKg
   const completedFields = days.reduce((sum, day) => sum + day.completedFields, 0)
   const totalFields = days.length * REPORT_FIELDS.length
+  const finalizedLogs = periodLogs.filter((log) => log.dayFinalized)
 
   return {
     startDate: settings.startDate,
@@ -100,6 +104,7 @@ export const buildReportSummary = (
     days,
     recordedDays: days.filter((day) => day.log != null).length,
     completeDays: days.filter((day) => day.completedFields === REPORT_FIELDS.length).length,
+    finalizedDays: finalizedLogs.length,
     completenessRate: totalFields ? Math.round(completedFields / totalFields * 100) : 0,
     firstWeightKg,
     latestWeightKg,
@@ -109,7 +114,9 @@ export const buildReportSummary = (
     averageActiveKcal: average(periodLogs.map(effectiveActiveKcal)),
     averageWaterMl: average(periodLogs.map((log) => log.waterMl)),
     averageSleepHours: average(periodLogs.map((log) => log.sleepHours)),
-    averageSteps: average(periodLogs.map((log) => log.steps))
+    averageSteps: average(periodLogs.map((log) => log.steps)),
+    averageFinalDeficitKcal: average(finalizedLogs.map(dailyDeficit)),
+    cumulativeFinalDeficitKcal: finalizedCumulativeDeficit(periodLogs, settings)
   }
 }
 
@@ -393,7 +400,7 @@ export const createReportCanvas = async (
   ctx.fillStyle = 'rgba(255,255,255,0.72)'
   setFont(ctx, 22, 500)
   ctx.fillText(`${formatDate(summary.startDate)} — ${formatDate(summary.endDate)}`, margin + 36, 224)
-  ctx.fillText(`已記錄 ${summary.recordedDays}/${summary.days.length} 天 · 完整日 ${summary.completeDays} 天`, margin + 36, 260)
+  ctx.fillText(`已記錄 ${summary.recordedDays}/${summary.days.length} 天 · 已結算 ${summary.finalizedDays} 天`, margin + 36, 260)
 
   const weightX = margin + 704
   fillRoundedRect(ctx, weightX, 78, 372, 235, 28, 'rgba(255,255,255,0.09)')
@@ -469,7 +476,8 @@ export const createReportCanvas = async (
   ctx.fillText('閱讀說明', margin, footerTop + 38)
   ctx.fillStyle = colors.muted
   setFont(ctx, 16, 500)
-  let noteY = wrapText(ctx, '活動熱量使用每日摘要，加上僅標記為「尚未包含」的運動；已包含於 Watch 的明細不重複計算。', margin, footerTop + 68, contentWidth, 25)
+  let noteY = wrapText(ctx, `活動熱量使用每日摘要，加上僅標記為「尚未包含」的運動；已包含於 Watch 的明細不重複計算。`, margin, footerTop + 68, contentWidth, 25)
+  noteY = wrapText(ctx, `赤字只統計已完成日結的 ${summary.finalizedDays} 天；平均 ${rounded(summary.averageFinalDeficitKcal)} kcal，累積 ${rounded(summary.cumulativeFinalDeficitKcal)} kcal。`, margin, noteY, contentWidth, 25)
   noteY = wrapText(ctx, '熱量、營養與體重變化依輸入資料與估算值整理，僅供自我追蹤，不是醫療診斷。', margin, noteY, contentWidth, 25)
   wrapText(ctx, '隱私：本報告完全在此裝置產生，不會自動上傳；分享後請只交給你信任的對象。', margin, noteY, contentWidth, 25)
   ctx.fillStyle = '#89938e'

@@ -18,6 +18,10 @@ export interface MealLine {
   fatPerUnit?: number
   fiberPerUnit?: number
   sodiumPerUnit?: number
+  /** Optional display name for one serving, for example "便當". */
+  portionLabel?: string
+  /** Identifies a complete quick template so duplicate taps can be detected. */
+  templateId?: string
 }
 
 export interface WorkoutEntry {

@@ -90,7 +90,7 @@ export function TodayPage({ today, log, logs, settings, onQuickAdd, onOpenRecord
 
     <div className="daily-flow flat-section" aria-label="今日三階段">{stages.map(({ id, label, note, status, Icon }) => <button key={id} className={status === '已完成' ? 'done' : status === '進行中' ? 'active' : ''} onClick={() => onOpenRecord(id)}><span className="flow-icon">{status === '已完成' ? <Check /> : <Icon />}</span><strong>{label}</strong><small>{status} · {note}</small></button>)}</div>
 
-    <section className="quick-sprint flat-section"><div className="flat-heading"><h2>快速加入</h2><span>白天隨吃隨記</span></div><div className="quick-water"><button onClick={() => addWater(250)}><Droplets size={18} />＋250 ml</button><button onClick={() => addWater(500)}><Droplets size={18} />＋500 ml</button></div><FoodQuickActions log={log} templates={templates} onChange={onQuickAdd} /></section>
+    <section className="quick-sprint flat-section"><div className="flat-heading"><h2>快速加入</h2><span>白天隨吃隨記</span></div><div className="quick-water"><button onClick={() => addWater(250)}><Droplets size={18} />＋250 ml</button><button onClick={() => addWater(500)}><Droplets size={18} />＋500 ml</button></div><FoodQuickActions log={log} templates={templates} onChange={onQuickAdd} onOpenFood={() => onOpenRecord('food')} /></section>
 
     <details className="more-data standard-card"><summary><span>更多資料</span><strong>{log.dayFinalized ? `達成率 ${achievementRate(log, settings)}%` : `完成 ${completion.completed}／${completion.total}`}</strong></summary><div className="more-data-body">
       {!log.dayFinalized && <p className="not-finalized-note">尚未完成晚間結算，不顯示最終赤字。</p>}

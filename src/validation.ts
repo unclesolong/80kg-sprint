@@ -13,6 +13,8 @@ const isValidMealLine = (value: unknown): value is MealLine => {
   return typeof item.key === 'string' && typeof item.label === 'string' && item.label.length <= 160 &&
     isNonNegative(item.amount) && ['g', 'ml', '份', '顆'].includes(String(item.unit)) &&
     isNonNegative(item.kcalPerUnit) && isNonNegative(item.proteinPerUnit) &&
+    (item.portionLabel == null || (typeof item.portionLabel === 'string' && item.portionLabel.length <= 40)) &&
+    (item.templateId == null || (typeof item.templateId === 'string' && item.templateId.length <= 160)) &&
     ['carbsPerUnit', 'fatPerUnit', 'fiberPerUnit', 'sodiumPerUnit'].every((field) => optionalNonNegative(item[field]))
 }
 

@@ -20,7 +20,7 @@ describe('食物快捷模板', () => {
     expect(undoPatch.intakeKcal).toBe(620)
     expect(undoPatch.proteinG).toBe(50)
     expect(undoPatch.foodUpdatedAt).toBe('before')
-    expect(undoPatch.mealDetails).toBe(log.mealDetails)
+    expect(undoPatch.mealDetails?.evening.at(-1)?.label).toBe('舊版未分類飲食')
     vi.unstubAllGlobals()
   })
 })

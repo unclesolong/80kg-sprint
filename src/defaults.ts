@@ -1,3 +1,4 @@
+import { mealTotals } from './calculations'
 import type { ChallengeSettings, DailyLog, FoodTemplate, MealDetails } from './types'
 
 export const defaultFoodTemplates = (): FoodTemplate[] => [
@@ -108,10 +109,55 @@ export const migrateSettings = (settings?: Partial<ChallengeSettings>): Challeng
   foodTemplates: (settings?.foodTemplates?.length ? settings.foodTemplates : defaultFoodTemplates()).map((template) => ({ ...template }))
 })
 
-export const migrateLog = (log: DailyLog): DailyLog => ({
-  ...log,
-  workouts: log.workouts?.map((workout) => ({
+const migratedMealDetails = (log: DailyLog): MealDetails => {
+  const source = log.mealDetails ?? emptyMealDetails()
+  const details: MealDetails = {
+    breakfast: source.breakfast.map((line) => ({ ...line })),
+    lunch: source.lunch.map((line) => ({ ...line })),
+    dinner: source.dinner.map((line) => ({ ...line })),
+    evening: source.evening.map((line) => ({ ...line })),
+    ramen: { ...source.ramen }
+  }
+  const hasContent = details.ramen.enabled || ['breakfast', 'lunch', 'dinner', 'evening'].some((meal) =>
+    details[meal as keyof Pick<MealDetails, 'breakfast' | 'lunch' | 'dinner' | 'evening'>].some((line) => line.amount > 0))
+  const hasLegacyTotals = [log.intakeKcal, log.proteinG, log.carbsG, log.fatG, log.fiberG, log.sodiumMg].some((value) => (value ?? 0) > 0)
+  if (!hasContent && hasLegacyTotals) {
+    details.evening.push({
+      key: `legacy-${log.id}`,
+      label: '舊版未分類飲食',
+      amount: 1,
+      unit: '份',
+      portionLabel: '份',
+      kcalPerUnit: log.intakeKcal ?? 0,
+      proteinPerUnit: log.proteinG ?? 0,
+      carbsPerUnit: log.carbsG ?? 0,
+      fatPerUnit: log.fatG ?? 0,
+      fiberPerUnit: log.fiberG ?? 0,
+      sodiumPerUnit: log.sodiumMg ?? 0
+    })
+  }
+  return details
+}
+
+export const migrateLog = (log: DailyLog): DailyLog => {
+  const mealDetails = migratedMealDetails(log)
+  const totals = mealTotals(mealDetails)
+  const hasNutritionSource = mealDetails.ramen.enabled || ['breakfast', 'lunch', 'dinner', 'evening'].some((meal) =>
+    mealDetails[meal as keyof Pick<MealDetails, 'breakfast' | 'lunch' | 'dinner' | 'evening'>].some((line) => line.amount > 0))
+  return {
+    ...log,
+    mealDetails,
+    ...(hasNutritionSource ? {
+      intakeKcal: totals.kcal,
+      proteinG: totals.protein,
+      carbsG: totals.carbs,
+      fatG: totals.fat,
+      fiberG: totals.fiber,
+      sodiumMg: totals.sodium
+    } : {}),
+    workouts: log.workouts?.map((workout) => ({
     ...workout,
     activityKcalMode: workout.activityKcalMode ?? 'included_in_daily_total'
-  }))
-})
+    }))
+  }
+}

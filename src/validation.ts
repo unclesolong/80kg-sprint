@@ -35,6 +35,7 @@ const isValidWorkout = (value: unknown): value is WorkoutEntry => {
     isNonNegative(item.durationMinutes) && (item.source === 'apple_watch' || item.source === 'manual') &&
     numeric.filter((field) => field !== 'muscleGroup').every((field) => optionalNonNegative(item[field])) &&
     (item.muscleGroup == null || typeof item.muscleGroup === 'string') &&
+    (item.activityKcalMode == null || item.activityKcalMode === 'included_in_daily_total' || item.activityKcalMode === 'add_to_daily_total') &&
     (item.perceivedExertion == null || (isNumber(item.perceivedExertion) && item.perceivedExertion >= 1 && item.perceivedExertion <= 10)) &&
     (item.notes == null || (typeof item.notes === 'string' && item.notes.length <= 5000))
 }
@@ -67,6 +68,7 @@ export const isValidLog = (value: unknown): value is DailyLog => {
   if (typeof item.id !== 'string' || !isDate(item.date) || typeof item.createdAt !== 'string' || typeof item.updatedAt !== 'string') return false
   const numericFields = ['weightKg', 'waistCm', 'activeKcal', 'restingKcal', 'exerciseMinutes', 'slowJogMinutes', 'slowJogActiveKcal', 'averageExerciseHeartRate', 'steps', 'distanceKm', 'standingHours', 'restingHeartRate', 'heartRateVariabilityMs', 'intakeKcal', 'proteinG', 'carbsG', 'fatG', 'fiberG', 'sodiumMg', 'waterMl', 'sleepHours']
   return numericFields.every((field) => optionalNonNegative(item[field])) &&
+    (item.activityUpdatedAt == null || (typeof item.activityUpdatedAt === 'string' && Number.isFinite(Date.parse(item.activityUpdatedAt)))) &&
     (item.workouts == null || (Array.isArray(item.workouts) && item.workouts.every(isValidWorkout))) &&
     (item.mealDetails == null || isValidMealDetails(item.mealDetails))
 }

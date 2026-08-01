@@ -13,4 +13,11 @@ describe('JSON 匯入驗證', () => {
     expect(validateBackup(invalid)).toBe(false)
     expect(validateBackup({ ...makeBackup(defaultSettings, [], []), logs: [{ id: 'bad' }] })).toBe(false)
   })
+
+  it('接受合法運動加總模式並拒絕未知值', () => {
+    const base = emptyLog('2026-08-01')
+    const workout = { id: 'run', type: 'run' as const, title: '晚間跑步', durationMinutes: 20, activeKcal: 171, source: 'manual' as const }
+    expect(validateBackup(makeBackup(defaultSettings, [{ ...base, workouts: [{ ...workout, activityKcalMode: 'add_to_daily_total' }] }], []))).toBe(true)
+    expect(validateBackup(makeBackup(defaultSettings, [{ ...base, workouts: [{ ...workout, activityKcalMode: 'invalid' as never }] }], []))).toBe(false)
+  })
 })

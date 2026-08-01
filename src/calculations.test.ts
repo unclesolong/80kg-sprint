@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cumulativeDeficit, dailyDeficit, estimatedTDEE, fatEquivalentKg, linearRegressionProjection, mealTotals, movingAverage, sleepDurationHours, targetWeightForDate } from './calculations'
+import { activityTotals, cumulativeDeficit, dailyDeficit, effectiveActiveKcal, estimatedTDEE, fatEquivalentKg, linearRegressionProjection, mealTotals, movingAverage, sleepDurationHours, targetWeightForDate } from './calculations'
 import { defaultMealDetails, defaultSettings, emptyLog } from './defaults'
 
 describe('能量計算', () => {
@@ -23,6 +23,46 @@ describe('能量計算', () => {
   })
 
   it('計算脂肪等值估算', () => expect(fatEquivalentKg(7700)).toBe(1))
+
+  it('只把尚未反映的運動加到活動快照', () => {
+    const log = { ...emptyLog('2026-08-01'), activeKcal: 300, workouts: [
+      { id: 'included', type: 'walk' as const, title: '步行', durationMinutes: 30, activeKcal: 200, source: 'apple_watch' as const },
+      { id: 'pending', type: 'run' as const, title: '晚間跑步', durationMinutes: 20, activeKcal: 171, source: 'manual' as const, activityKcalMode: 'add_to_daily_total' as const }
+    ] }
+    expect(activityTotals(log)).toEqual({
+      baseActiveKcal: 300,
+      workoutActiveKcal: 371,
+      additionalWorkoutActiveKcal: 171,
+      effectiveActiveKcal: 471,
+      otherActiveKcal: 100
+    })
+  })
+
+  it('舊運動明細預設已包含，不改變既有總量', () => {
+    const log = { ...emptyLog('2026-08-01'), activeKcal: 600, workouts: [
+      { id: 'legacy', type: 'run' as const, title: '跑步', durationMinutes: 30, activeKcal: 300, source: 'apple_watch' as const }
+    ] }
+    expect(effectiveActiveKcal(log)).toBe(600)
+  })
+
+  it('沒有 Watch 快照時可用待加入明細作為目前值', () => {
+    const pending = { ...emptyLog('2026-08-01'), workouts: [
+      { id: 'manual', type: 'walk' as const, title: '步行', durationMinutes: 30, activeKcal: 120, source: 'manual' as const, activityKcalMode: 'add_to_daily_total' as const }
+    ] }
+    const included = { ...emptyLog('2026-08-01'), workouts: [
+      { id: 'watch', type: 'walk' as const, title: '步行', durationMinutes: 30, activeKcal: 120, source: 'apple_watch' as const }
+    ] }
+    expect(effectiveActiveKcal(pending)).toBe(120)
+    expect(effectiveActiveKcal(included)).toBeUndefined()
+  })
+
+  it('TDEE 使用快照加待同步運動，不加入已包含運動', () => {
+    const log = { ...emptyLog('2026-08-01'), restingKcal: 1800, activeKcal: 300, intakeKcal: 1700, workouts: [
+      { id: 'pending', type: 'run' as const, title: '晚間跑步', durationMinutes: 20, activeKcal: 171, source: 'manual' as const, activityKcalMode: 'add_to_daily_total' as const }
+    ] }
+    expect(estimatedTDEE(log)).toBe(2271)
+    expect(dailyDeficit(log)).toBe(571)
+  })
 
   it('詳細餐點同步計算三大營養素、纖維與鈉', () => {
     const details = defaultMealDetails()

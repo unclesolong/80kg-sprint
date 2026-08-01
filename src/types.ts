@@ -4,6 +4,7 @@ export type SaltLevel = 'normal' | 'high'
 export type ThemeMode = 'dark' | 'light'
 export type WorkoutType = 'walk' | 'slow_jog' | 'run' | 'strength' | 'cycling' | 'other'
 export type WorkoutSource = 'apple_watch' | 'manual'
+export type WorkoutActivityKcalMode = 'included_in_daily_total' | 'add_to_daily_total'
 
 export interface MealLine {
   key: string
@@ -36,6 +37,8 @@ export interface WorkoutEntry {
   weightKg?: number
   rir?: number
   source: WorkoutSource
+  /** Missing on legacy records means the workout is already included. */
+  activityKcalMode?: WorkoutActivityKcalMode
   notes?: string
 }
 
@@ -68,7 +71,9 @@ export interface DailyLog {
   weightKg?: number
   weightCondition?: WeightCondition
   waistCm?: number
+  /** The latest Apple Watch or manually copied daily activity snapshot. */
   activeKcal?: number
+  activityUpdatedAt?: string
   restingKcal?: number
   exerciseMinutes?: number
   slowJogMinutes?: number

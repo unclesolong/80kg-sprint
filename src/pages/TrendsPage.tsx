@@ -1,5 +1,5 @@
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { achievementRate, average, cumulativeDeficit, dailyDeficit, estimatedTDEE, fatEquivalentKg, linearRegressionProjection, movingAverage, targetWeightForDate } from '../calculations'
+import { achievementRate, average, cumulativeDeficit, dailyDeficit, effectiveActiveKcal, estimatedTDEE, fatEquivalentKg, linearRegressionProjection, movingAverage, targetWeightForDate } from '../calculations'
 import type { ChallengeSettings, DailyLog } from '../types'
 
 const tipStyle = { background: '#171c19', border: '1px solid #343b37', borderRadius: 12, color: '#f5f7f5' }
@@ -19,7 +19,7 @@ export function TrendsPage({ logs, settings }: { logs: DailyLog[]; settings: Cha
     ma3: morningByDate.get(log.date)?.ma3, ma7: morningByDate.get(log.date)?.ma7,
     target: targetWeightForDate(log.date, settings), targetFinal: settings.targetWeightKg,
     intake: log.intakeKcal, tdee: estimatedTDEE(log), deficit: dailyDeficit(log),
-    active: log.activeKcal, exercise: log.exerciseMinutes, steps: log.steps,
+    active: effectiveActiveKcal(log), exercise: log.exerciseMinutes, steps: log.steps,
     sleep: log.sleepHours, fatigue: log.fatigueLevel, hunger: log.hungerLevel
   }))
   const cumulative = cumulativeDeficit(ordered, settings)
@@ -50,7 +50,7 @@ export function TrendsPage({ logs, settings }: { logs: DailyLog[]; settings: Cha
     <div className="section-heading"><h2>摘要</h2><span>{ordered.length} 天紀錄</span></div>
     <div className="summary-grid">
       <Summary label="平均每日攝取" value={format(average(ordered.map((log) => log.intakeKcal)), 'kcal')} />
-      <Summary label="平均活動能量" value={format(average(ordered.map((log) => log.activeKcal)), 'kcal')} />
+      <Summary label="平均活動能量" value={format(average(ordered.map(effectiveActiveKcal)), 'kcal')} />
       <Summary label="平均推估赤字" value={format(average(ordered.map(dailyDeficit)), 'kcal')} />
       <Summary label="累積推估赤字" value={format(cumulative, 'kcal')} />
       <Summary label="脂肪等值估算" value={format(fatEquivalentKg(cumulative), 'kg')} note="7700 kcal/kg 僅為估算" />

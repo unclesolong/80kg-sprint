@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { mealTotals, parseLocalDate, sleepDurationHours } from '../calculations'
+import { activityTotals, localDateString, mealTotals, parseLocalDate, sleepDurationHours } from '../calculations'
 import { defaultMealDetails } from '../defaults'
 import type { CustomFood, DailyLog, MealDetails, MealLine, WorkoutEntry, WorkoutType } from '../types'
 import { NumberField } from '../components/NumberField'
@@ -35,7 +35,7 @@ const workoutLabels: Record<WorkoutType, string> = {
 }
 
 const blankWorkout = (): WorkoutEntry => ({
-  id: crypto.randomUUID(), type: 'walk', title: '步行', durationMinutes: 0, source: 'apple_watch'
+  id: crypto.randomUUID(), type: 'walk', title: '步行', durationMinutes: 0, source: 'apple_watch', activityKcalMode: 'included_in_daily_total'
 })
 
 const blankFood = (): Omit<CustomFood, 'id'> => ({
@@ -59,6 +59,12 @@ export function RecordPage({ date, log, foods, saveState, onDate, onChange, onSa
   const [activeTab, setActiveTab] = useState<RecordTab>('morning')
   const details = log.mealDetails ?? defaultMealDetails()
   const workouts = log.workouts ?? []
+  const activity = activityTotals(log)
+  const workoutMinutes = workouts.reduce((sum, workout) => sum + workout.durationMinutes, 0)
+  const isToday = date === localDateString()
+  const activityUpdatedLabel = log.activityUpdatedAt
+    ? new Intl.DateTimeFormat('zh-TW', { hour: '2-digit', minute: '2-digit' }).format(new Date(log.activityUpdatedAt))
+    : undefined
 
   const updateDetails = (next: MealDetails) => {
     const totals = mealTotals(next)
@@ -88,14 +94,22 @@ export function RecordPage({ date, log, foods, saveState, onDate, onChange, onSa
     setNewFood({ name: food.name, basis: food.basis, kcal: food.kcal, proteinG: food.proteinG, carbsG: food.carbsG ?? 0, fatG: food.fatG ?? 0, fiberG: food.fiberG ?? 0, sodiumMg: food.sodiumMg ?? 0, defaultAmount: food.defaultAmount })
   }
   const saveWorkout = () => {
-    if (!workoutDraft.title.trim() || workoutDraft.durationMinutes <= 0) return
+    if (!workoutDraft.title.trim() || workoutDraft.durationMinutes <= 0 || (workoutDraft.activityKcalMode === 'add_to_daily_total' && workoutDraft.activeKcal == null)) return
     const next = editingWorkoutId
       ? workouts.map((workout) => workout.id === editingWorkoutId ? workoutDraft : workout)
       : [...workouts, workoutDraft]
-    onChange({ workouts: next })
+    onChange({ workouts: next, activityUpdatedAt: new Date().toISOString() })
     setWorkoutDraft(blankWorkout()); setEditingWorkoutId(undefined); setShowWorkoutForm(false)
   }
-  const editWorkout = (workout: WorkoutEntry) => { setWorkoutDraft(workout); setEditingWorkoutId(workout.id); setShowWorkoutForm(true) }
+  const editWorkout = (workout: WorkoutEntry) => { setWorkoutDraft({ ...workout, activityKcalMode: workout.activityKcalMode ?? 'included_in_daily_total' }); setEditingWorkoutId(workout.id); setShowWorkoutForm(true) }
+  const deleteWorkout = (id: string) => onChange({ workouts: workouts.filter((item) => item.id !== id), activityUpdatedAt: new Date().toISOString() })
+  const updateActivity = (patch: Partial<DailyLog>) => onChange({ ...patch, activityUpdatedAt: new Date().toISOString() })
+  const markPendingWorkoutsIncluded = () => onChange({
+    workouts: workouts.map((workout) => workout.activityKcalMode === 'add_to_daily_total'
+      ? { ...workout, activityKcalMode: 'included_in_daily_total' }
+      : workout),
+    activityUpdatedAt: new Date().toISOString()
+  })
   const updateSleepTime = (key: 'sleepStartedAt' | 'sleepEndedAt', value: string) => {
     const nextTimes = {
       ...sleepTimesRef.current,
@@ -112,7 +126,7 @@ export function RecordPage({ date, log, foods, saveState, onDate, onChange, onSa
   const currentDate = parseLocalDate(date)
   const tabs: Array<{ id: RecordTab; label: string; incomplete: boolean }> = [
     { id: 'morning', label: '晨間', incomplete: log.weightKg == null || log.sleepHours == null },
-    { id: 'activity', label: '活動', incomplete: log.activeKcal == null || log.restingKcal == null },
+    { id: 'activity', label: '活動', incomplete: activity.effectiveActiveKcal == null || log.restingKcal == null },
     { id: 'food', label: '飲食', incomplete: log.intakeKcal == null || log.proteinG == null },
     { id: 'water', label: '水分', incomplete: log.waterMl == null },
     { id: 'condition', label: '狀態', incomplete: log.hungerLevel == null || log.fatigueLevel == null }
@@ -143,29 +157,43 @@ export function RecordPage({ date, log, foods, saveState, onDate, onChange, onSa
     </div>}
 
     {activeTab === 'activity' && <div className="record-tab-panel">
-      <div className="tab-intro"><strong>Apple Watch 每日摘要</strong><p>從「健身」或「健康」App 手動抄入；PWA 無法直接讀取 HealthKit。</p></div>
-      <Section title="每日活動總覽" missing={log.activeKcal == null || log.restingKcal == null}>
-        <NumberField label="Apple Watch 活動能量" value={log.activeKcal} unit="kcal" quick={[50, 100]} onChange={(activeKcal) => onChange({ activeKcal })} />
-        <NumberField label="Apple Watch 靜態能量" value={log.restingKcal} unit="kcal" quick={[100]} onChange={(restingKcal) => onChange({ restingKcal })} />
-        <NumberField label="運動時間" value={log.exerciseMinutes} unit="分鐘" quick={[10, 15]} onChange={(exerciseMinutes) => onChange({ exerciseMinutes })} />
-        <NumberField label="步數" value={log.steps} unit="步" step={100} quick={[1000]} onChange={(steps) => onChange({ steps })} />
-        <NumberField label="距離" value={log.distanceKm} unit="km" step={0.1} onChange={(distanceKm) => onChange({ distanceKm })} />
-        <NumberField label="站立時數" value={log.standingHours} unit="小時" onChange={(standingHours) => onChange({ standingHours })} />
-        <NumberField label="平均運動心率" value={log.averageExerciseHeartRate} unit="bpm" onChange={(averageExerciseHeartRate) => onChange({ averageExerciseHeartRate })} />
+      <div className="tab-intro"><strong>{isToday ? '今天仍在進行中' : '當日活動摘要'}</strong><p>{isToday ? '先記目前數字，外出或晚間運動後再回來更新即可。' : '可修正當天最後的 Apple Watch 或手動摘要數字。'}</p></div>
+      <div className="activity-live-card panel" aria-label="目前活動能量拆分">
+        <div className="activity-live-heading"><span>{isToday ? '目前計入活動能量' : '當日計入活動能量'}</span><small>{activityUpdatedLabel ? `${activityUpdatedLabel} 更新` : '尚未更新時間'}</small></div>
+        <strong>{activity.effectiveActiveKcal == null ? '—' : Math.round(activity.effectiveActiveKcal)}<small> kcal</small></strong>
+        <div className="activity-breakdown">
+          <span>Watch／摘要<b>{activity.baseActiveKcal == null ? '—' : Math.round(activity.baseActiveKcal)} kcal</b></span>
+          <span>運動明細小計<b>{Math.round(activity.workoutActiveKcal)} kcal</b></span>
+          <span className={activity.additionalWorkoutActiveKcal > 0 ? 'pending' : ''}>尚未反映、另外加入<b>+{Math.round(activity.additionalWorkoutActiveKcal)} kcal</b></span>
+        </div>
+        <p>Apple Watch 活動能量包含走路等日常活動，所以不一定等於運動明細小計。</p>
+      </div>
+      {activity.additionalWorkoutActiveKcal > 0 && <div className="activity-sync-note">
+        <div><strong>有 {Math.round(activity.additionalWorkoutActiveKcal)} kcal 待同步</strong><p>目前已暫加到總量。稍後 Watch 最新數字若已包含這些運動，再按右側按鈕避免重複。</p></div>
+        <button type="button" disabled={log.activeKcal == null} onClick={markPendingWorkoutsIncluded}>Watch 已包含</button>
+      </div>}
+      <Section title="目前活動快照" missing={activity.effectiveActiveKcal == null || log.restingKcal == null}>
+        <NumberField label="Watch 目前活動能量（截至現在）" value={log.activeKcal} unit="kcal" quick={[50, 100]} onChange={(activeKcal) => updateActivity({ activeKcal })} />
+        <NumberField label="Watch 目前靜態能量（截至現在）" value={log.restingKcal} unit="kcal" quick={[100]} onChange={(restingKcal) => updateActivity({ restingKcal })} />
+        <NumberField label="目前運動時間" value={log.exerciseMinutes} unit="分鐘" quick={[10, 15]} onChange={(exerciseMinutes) => updateActivity({ exerciseMinutes })} />
+        <NumberField label="目前步數" value={log.steps} unit="步" step={100} quick={[1000]} onChange={(steps) => updateActivity({ steps })} />
+        <NumberField label="目前距離" value={log.distanceKm} unit="km" step={0.1} onChange={(distanceKm) => updateActivity({ distanceKm })} />
+        <NumberField label="目前站立時數" value={log.standingHours} unit="小時" onChange={(standingHours) => updateActivity({ standingHours })} />
+        <NumberField label="平均運動心率" value={log.averageExerciseHeartRate} unit="bpm" onChange={(averageExerciseHeartRate) => updateActivity({ averageExerciseHeartRate })} />
       </Section>
       <Section title="恢復指標" open={false}>
         <NumberField label="靜息心率" value={log.restingHeartRate} unit="bpm" onChange={(restingHeartRate) => onChange({ restingHeartRate })} />
         <NumberField label="心率變異度 HRV" value={log.heartRateVariabilityMs} unit="ms" onChange={(heartRateVariabilityMs) => onChange({ heartRateVariabilityMs })} />
         <p className="fine-print">這些數值受量測時機與裝置影響，適合看長期趨勢，不做醫療判斷。</p>
       </Section>
-      <Section title={`運動明細 ${workouts.length ? `· ${workouts.length} 筆` : ''}`}>
-        <div className="workout-list">{workouts.length === 0 ? <p className="empty">尚無運動明細。每日活動總量仍可獨立使用。</p> : workouts.map((workout) => <article key={workout.id} className="workout-card">
-          <div><span>{workoutLabels[workout.type]} · {workout.source === 'apple_watch' ? 'Apple Watch' : '手動'}</span><strong>{workout.title}</strong><small>{workout.durationMinutes} 分{workout.distanceKm != null ? ` · ${workout.distanceKm} km` : ''}{workout.activeKcal != null ? ` · ${workout.activeKcal} kcal` : ''}</small></div>
-          <div><button type="button" onClick={() => editWorkout(workout)}>編輯</button><button type="button" className="danger-text" onClick={() => onChange({ workouts: workouts.filter((item) => item.id !== workout.id) })}>刪除</button></div>
+      <Section title={`運動明細 ${workouts.length ? `· ${workouts.length} 筆 · ${workoutMinutes} 分` : ''}`}>
+        <div className="workout-list">{workouts.length === 0 ? <p className="empty">尚無運動明細。新增後可選擇是否立即累積到目前活動能量。</p> : workouts.map((workout) => <article key={workout.id} className="workout-card">
+          <div><span>{workoutLabels[workout.type]} · {workout.source === 'apple_watch' ? 'Apple Watch' : '手動'}</span><strong>{workout.title}</strong><small>{workout.durationMinutes} 分{workout.distanceKm != null ? ` · ${workout.distanceKm} km` : ''}{workout.activeKcal != null ? ` · ${workout.activeKcal} kcal` : ' · 熱量未填'}</small><em className={workout.activityKcalMode === 'add_to_daily_total' ? 'pending' : ''}>{workout.activityKcalMode === 'add_to_daily_total' ? `＋${workout.activeKcal ?? 0} kcal 已加入目前總量` : '已包含在 Watch／摘要，不重複加'}</em></div>
+          <div><button type="button" onClick={() => editWorkout(workout)}>編輯</button><button type="button" className="danger-text" onClick={() => deleteWorkout(workout.id)}>刪除</button></div>
         </article>)}</div>
         {!showWorkoutForm && <button type="button" className="primary add-detail-button" onClick={() => setShowWorkoutForm(true)}>＋ 新增運動明細</button>}
         {showWorkoutForm && <div className="workout-form panel-inner">
-          <div className="form-title"><strong>{editingWorkoutId ? '編輯運動' : '新增運動'}</strong><span>不會重複加到每日活動能量</span></div>
+          <div className="form-title"><strong>{editingWorkoutId ? '編輯運動' : '新增運動'}</strong><span>儲存後會依下方選擇自動重算</span></div>
           <label className="select-field">類型<select value={workoutDraft.type} onChange={(event) => { const type = event.target.value as WorkoutType; setWorkoutDraft({ ...workoutDraft, type, title: workoutLabels[type] }) }}>{Object.entries(workoutLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
           <label className="text-field">名稱<input value={workoutDraft.title} onChange={(event) => setWorkoutDraft({ ...workoutDraft, title: event.target.value })} /></label>
           <label className="select-field">開始時間<input type="time" value={workoutDraft.startTime ?? ''} onChange={(event) => setWorkoutDraft({ ...workoutDraft, startTime: event.target.value || undefined })} /></label>
@@ -179,9 +207,14 @@ export function RecordPage({ date, log, foods, saveState, onDate, onChange, onSa
           </div>
           <SelectScale label="主觀強度 RPE" max={10} value={workoutDraft.perceivedExertion} onChange={(perceivedExertion) => setWorkoutDraft({ ...workoutDraft, perceivedExertion: perceivedExertion as WorkoutEntry['perceivedExertion'] })} />
           {workoutDraft.type === 'strength' && <div className="strength-fields"><label className="text-field">肌群／動作<input placeholder="例如：腿、深蹲" value={workoutDraft.muscleGroup ?? ''} onChange={(event) => setWorkoutDraft({ ...workoutDraft, muscleGroup: event.target.value })} /></label><div className="compact-field-grid"><NumberField label="組數" value={workoutDraft.sets} onChange={(sets) => setWorkoutDraft({ ...workoutDraft, sets })} /><NumberField label="每組次數" value={workoutDraft.reps} onChange={(reps) => setWorkoutDraft({ ...workoutDraft, reps })} /><NumberField label="重量" value={workoutDraft.weightKg} unit="kg" step={0.5} onChange={(weightKg) => setWorkoutDraft({ ...workoutDraft, weightKg })} /><NumberField label="保留次數 RIR" value={workoutDraft.rir} max={10} onChange={(rir) => setWorkoutDraft({ ...workoutDraft, rir })} /></div></div>}
-          <label className="select-field">來源<select value={workoutDraft.source} onChange={(event) => setWorkoutDraft({ ...workoutDraft, source: event.target.value as WorkoutEntry['source'] })}><option value="apple_watch">Apple Watch</option><option value="manual">手動紀錄</option></select></label>
+          <label className="select-field">來源<select value={workoutDraft.source} onChange={(event) => { const source = event.target.value as WorkoutEntry['source']; setWorkoutDraft({ ...workoutDraft, source, activityKcalMode: source === 'apple_watch' ? 'included_in_daily_total' : 'add_to_daily_total' }) }}><option value="apple_watch">Apple Watch</option><option value="manual">手動紀錄</option></select></label>
+          <div className="activity-mode-field"><label>這筆活動能量如何計入？</label><div className="segmented">
+            <button type="button" className={workoutDraft.activityKcalMode !== 'add_to_daily_total' ? 'selected' : ''} onClick={() => setWorkoutDraft({ ...workoutDraft, activityKcalMode: 'included_in_daily_total' })}>已包含在 Watch</button>
+            <button type="button" className={workoutDraft.activityKcalMode === 'add_to_daily_total' ? 'selected' : ''} onClick={() => setWorkoutDraft({ ...workoutDraft, activityKcalMode: 'add_to_daily_total' })}>尚未包含，加入總量</button>
+          </div><p>{workoutDraft.activityKcalMode === 'add_to_daily_total' ? '這筆活動熱量會立即加到目前總量；Watch 之後同步時可再標記為已包含。' : '只保留運動明細，不再加一次，避免和 Watch 總量重複。'}</p></div>
           <label className="text-field">備註<textarea rows={2} value={workoutDraft.notes ?? ''} onChange={(event) => setWorkoutDraft({ ...workoutDraft, notes: event.target.value })} /></label>
-          <div className="form-actions"><button type="button" className="primary" disabled={!workoutDraft.title.trim() || workoutDraft.durationMinutes <= 0} onClick={saveWorkout}>{editingWorkoutId ? '儲存修改' : '加入運動'}</button><button type="button" onClick={() => { setWorkoutDraft(blankWorkout()); setEditingWorkoutId(undefined); setShowWorkoutForm(false) }}>取消</button></div>
+          {workoutDraft.activityKcalMode === 'add_to_daily_total' && workoutDraft.activeKcal == null && <p className="field-error">要加入目前總量，請先填寫活動能量。</p>}
+          <div className="form-actions"><button type="button" className="primary" disabled={!workoutDraft.title.trim() || workoutDraft.durationMinutes <= 0 || (workoutDraft.activityKcalMode === 'add_to_daily_total' && workoutDraft.activeKcal == null)} onClick={saveWorkout}>{editingWorkoutId ? '儲存修改' : '加入運動'}</button><button type="button" onClick={() => { setWorkoutDraft(blankWorkout()); setEditingWorkoutId(undefined); setShowWorkoutForm(false) }}>取消</button></div>
         </div>}
         {(log.slowJogMinutes != null || log.slowJogActiveKcal != null) && <div className="legacy-note">舊版超慢跑：{log.slowJogMinutes ?? 0} 分 · {log.slowJogActiveKcal ?? 0} kcal（保留舊紀錄，不重複計算）</div>}
       </Section>

@@ -1,4 +1,4 @@
-import { average, localDateString } from './calculations'
+import { average, effectiveActiveKcal, localDateString } from './calculations'
 import type { ChallengeSettings, DailyLog } from './types'
 
 const REPORT_WIDTH = 1240
@@ -52,6 +52,7 @@ const enumerateDates = (startDate: string, endDate: string): string[] => {
 
 const hasValue = (log: DailyLog | undefined, field: ReportField): boolean => {
   if (!log) return false
+  if (field === 'activeKcal') return effectiveActiveKcal(log) != null
   const value = log[field]
   return typeof value === 'number' && Number.isFinite(value)
 }
@@ -105,9 +106,7 @@ export const buildReportSummary = (
     weightChangeKg: firstWeightKg != null && latestWeightKg != null ? latestWeightKg - firstWeightKg : undefined,
     averageIntakeKcal: average(periodLogs.map((log) => log.intakeKcal)),
     averageProteinG: average(periodLogs.map((log) => log.proteinG)),
-    // Deliberately use the daily activity total only. Workout entries often
-    // originate from the same Apple Watch data and must not be added again.
-    averageActiveKcal: average(periodLogs.map((log) => log.activeKcal)),
+    averageActiveKcal: average(periodLogs.map(effectiveActiveKcal)),
     averageWaterMl: average(periodLogs.map((log) => log.waterMl)),
     averageSleepHours: average(periodLogs.map((log) => log.sleepHours)),
     averageSteps: average(periodLogs.map((log) => log.steps))
@@ -331,7 +330,7 @@ const drawDailyTable = (
       rounded(log?.weightKg, 1),
       rounded(log?.intakeKcal),
       rounded(log?.proteinG),
-      rounded(log?.activeKcal),
+      rounded(log ? effectiveActiveKcal(log) : undefined),
       rounded(log?.waterMl),
       rounded(log?.sleepHours, 1),
       rounded(log?.steps)
@@ -470,7 +469,7 @@ export const createReportCanvas = async (
   ctx.fillText('閱讀說明', margin, footerTop + 38)
   ctx.fillStyle = colors.muted
   setFont(ctx, 16, 500)
-  let noteY = wrapText(ctx, '活動熱量沿用每日 Apple Watch／手動活動總值；運動明細不另加，避免重複計算。', margin, footerTop + 68, contentWidth, 25)
+  let noteY = wrapText(ctx, '活動熱量使用每日摘要，加上僅標記為「尚未包含」的運動；已包含於 Watch 的明細不重複計算。', margin, footerTop + 68, contentWidth, 25)
   noteY = wrapText(ctx, '熱量、營養與體重變化依輸入資料與估算值整理，僅供自我追蹤，不是醫療診斷。', margin, noteY, contentWidth, 25)
   wrapText(ctx, '隱私：本報告完全在此裝置產生，不會自動上傳；分享後請只交給你信任的對象。', margin, noteY, contentWidth, 25)
   ctx.fillStyle = '#89938e'

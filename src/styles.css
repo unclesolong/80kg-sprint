@@ -136,6 +136,23 @@ h3 { margin-bottom: 6px; }
 .tab-intro, .sleep-context { border-radius: 16px; padding: 13px 15px; margin-bottom: 10px; background: var(--green-deep); }
 .tab-intro strong, .sleep-context strong { color: var(--green); font-size: .82rem; }
 .tab-intro p, .sleep-context p { color: var(--muted); font-size: .7rem; line-height: 1.5; margin: 4px 0 0; }
+.activity-live-card { position: relative; overflow: hidden; margin-bottom: 10px; padding: 18px; background: linear-gradient(145deg, color-mix(in srgb, var(--green), var(--card) 84%), var(--card)); }
+.activity-live-card::after { content: ''; position: absolute; width: 130px; height: 130px; right: -55px; top: -65px; border-radius: 50%; background: color-mix(in srgb, var(--green), transparent 82%); }
+.activity-live-heading { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--muted); font-size: .7rem; }
+.activity-live-heading span { color: var(--green); font-weight: 800; }
+.activity-live-card > strong { position: relative; z-index: 1; display: block; margin: 7px 0 15px; font-size: 2.15rem; letter-spacing: -.04em; }
+.activity-live-card > strong small { color: var(--muted); font-size: .78rem; letter-spacing: 0; }
+.activity-breakdown { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.activity-breakdown span { min-width: 0; padding: 9px; border: 1px solid var(--line); border-radius: 11px; background: color-mix(in srgb, var(--card-2), transparent 8%); color: var(--muted); font-size: .61rem; line-height: 1.35; }
+.activity-breakdown b { display: block; margin-top: 4px; color: var(--text); font-size: .75rem; }
+.activity-breakdown .pending { border-color: color-mix(in srgb, var(--yellow), var(--line) 55%); }
+.activity-breakdown .pending b { color: var(--yellow); }
+.activity-live-card > p { position: relative; z-index: 1; margin: 12px 0 0; color: var(--muted); font-size: .65rem; line-height: 1.5; }
+.activity-sync-note { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; margin-bottom: 10px; padding: 13px 14px; border: 1px solid color-mix(in srgb, var(--yellow), var(--line) 55%); border-radius: 14px; background: color-mix(in srgb, var(--yellow), transparent 92%); }
+.activity-sync-note strong { color: var(--yellow); font-size: .78rem; }
+.activity-sync-note p { margin: 4px 0 0; color: var(--muted); font-size: .65rem; line-height: 1.45; }
+.activity-sync-note button { white-space: nowrap; border: 1px solid var(--line); border-radius: 10px; background: var(--card); font-size: .68rem; font-weight: 800; }
+.activity-sync-note button:disabled { opacity: .5; }
 .sleep-context { margin: 8px 0 2px; background: var(--card-2); }
 .calculated-note { margin: 7px 0 0; color: var(--green); font-size: .68rem; }
 input, select, textarea { background: var(--card-2); border: 1px solid var(--line); border-radius: 12px; min-height: 44px; padding: 10px 12px; width: 100%; }
@@ -205,15 +222,22 @@ textarea { resize: vertical; line-height: 1.5; }
 .workout-list { display: grid; gap: 8px; margin: 8px 0 14px; }
 .add-detail-button { width: 100%; }
 .workout-card { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px; border: 1px solid var(--line); border-radius: 14px; background: var(--card-2); }
-.workout-card span, .workout-card strong, .workout-card small { display: block; }
+.workout-card span, .workout-card strong, .workout-card small, .workout-card em { display: block; }
 .workout-card span, .workout-card small { color: var(--muted); font-size: .68rem; }
 .workout-card strong { margin: 4px 0; font-size: .88rem; }
+.workout-card em { width: fit-content; margin-top: 6px; padding: 4px 7px; border-radius: 7px; background: color-mix(in srgb, var(--green), transparent 88%); color: var(--green); font-size: .61rem; font-style: normal; font-weight: 750; }
+.workout-card em.pending { background: color-mix(in srgb, var(--yellow), transparent 88%); color: var(--yellow); }
 .workout-card > div:last-child { display: flex; gap: 5px; }
 .workout-card button { min-height: 34px; border: 1px solid var(--line); border-radius: 9px; background: var(--card); padding: 5px 8px; font-size: .66rem; }
 .workout-form { margin-top: 10px; }
 .form-title { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0 10px; border-bottom: 1px solid var(--line); }
 .form-title span { color: var(--muted); font-size: .66rem; text-align: right; }
 .text-field { padding: 10px 0; }
+.activity-mode-field { padding: 10px 0 2px; }
+.activity-mode-field > label { color: var(--muted); font-size: .76rem; }
+.activity-mode-field .segmented { grid-auto-flow: row; grid-template-columns: 1fr 1fr; }
+.activity-mode-field p { margin: 5px 4px 0; color: var(--muted); font-size: .65rem; line-height: 1.45; }
+.field-error { margin: 8px 0 0; color: var(--red); font-size: .68rem; }
 .form-actions { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 12px; }
 .form-actions button { border: 1px solid var(--line); border-radius: 12px; background: var(--card); padding: 8px 12px; font-weight: 700; }
 .legacy-note { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--yellow), transparent 90%); color: var(--muted); font-size: .68rem; }
@@ -304,6 +328,8 @@ textarea { resize: vertical; line-height: 1.5; }
   .food-list span { width: 100%; }
   .page-header { align-items: center; }
   .page-header input[type='date'] { width: 138px; padding: 8px; }
+  .activity-sync-note { grid-template-columns: 1fr; }
+  .activity-sync-note button { width: 100%; }
   .record-save-bar { grid-template-columns: 1fr; }
   .record-save-bar button { width: 100%; }
 }

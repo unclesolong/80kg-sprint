@@ -27,9 +27,42 @@ export const sleepDurationHours = (startedAt?: string, endedAt?: string): number
   return Math.round((end - start) / 60 * 100) / 100
 }
 
+export interface ActivityTotals {
+  baseActiveKcal?: number
+  workoutActiveKcal: number
+  additionalWorkoutActiveKcal: number
+  effectiveActiveKcal?: number
+  otherActiveKcal?: number
+}
+
+/**
+ * Daily activity is a snapshot plus only the workouts explicitly marked as
+ * missing from that snapshot. Legacy workout records are treated as included,
+ * preserving their historical totals.
+ */
+export const activityTotals = (log: DailyLog): ActivityTotals => {
+  const workouts = log.workouts ?? []
+  const workoutActiveKcal = workouts.reduce((sum, workout) => sum + (workout.activeKcal ?? 0), 0)
+  const additionalWorkoutActiveKcal = workouts.reduce((sum, workout) =>
+    sum + (workout.activityKcalMode === 'add_to_daily_total' ? workout.activeKcal ?? 0 : 0), 0)
+  const effectiveActiveKcal = log.activeKcal != null
+    ? log.activeKcal + additionalWorkoutActiveKcal
+    : additionalWorkoutActiveKcal > 0 ? additionalWorkoutActiveKcal : undefined
+  return {
+    baseActiveKcal: log.activeKcal,
+    workoutActiveKcal,
+    additionalWorkoutActiveKcal,
+    effectiveActiveKcal,
+    otherActiveKcal: effectiveActiveKcal == null ? undefined : Math.max(0, effectiveActiveKcal - workoutActiveKcal)
+  }
+}
+
+export const effectiveActiveKcal = (log: DailyLog): number | undefined => activityTotals(log).effectiveActiveKcal
+
 export const estimatedTDEE = (log: DailyLog): number | undefined => {
-  if (log.restingKcal == null || log.activeKcal == null) return undefined
-  return log.restingKcal + log.activeKcal
+  const activeKcal = effectiveActiveKcal(log)
+  if (log.restingKcal == null || activeKcal == null) return undefined
+  return log.restingKcal + activeKcal
 }
 
 export const dailyDeficit = (log: DailyLog): number | undefined => {
@@ -111,9 +144,10 @@ export const mealTotals = (details: MealDetails): NutritionTotals => {
 }
 
 export const achievementRate = (log: DailyLog, settings: ChallengeSettings): number => {
+  const activeKcal = effectiveActiveKcal(log)
   const checks = [
     log.weightKg != null && log.weightCondition === 'morning_fasted',
-    (log.activeKcal ?? 0) >= settings.activeKcalMinimum,
+    (activeKcal ?? 0) >= settings.activeKcalMinimum,
     (log.intakeKcal ?? -1) >= settings.intakeKcalMinimum && (log.intakeKcal ?? Infinity) <= settings.intakeKcalMaximum,
     (log.proteinG ?? 0) >= settings.proteinMinimumG,
     (log.waterMl ?? 0) >= settings.waterMinimumMl,

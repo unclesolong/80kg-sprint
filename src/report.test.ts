@@ -48,4 +48,17 @@ describe('buildReportSummary', () => {
 
     expect(summary.averageActiveKcal).toBe(600)
   })
+
+  it('adds only workouts marked as not yet included in the daily snapshot', () => {
+    const settings = { ...defaultSettings, startDate: '2026-08-01', finalWeighInDate: '2026-08-01' }
+    const summary = buildReportSummary(settings, [log('2026-08-01', {
+      activeKcal: 600,
+      workouts: [
+        { id: 'watch', type: 'walk', title: '步行', durationMinutes: 30, activeKcal: 200, source: 'apple_watch' },
+        { id: 'late', type: 'run', title: '晚間跑步', durationMinutes: 20, activeKcal: 171, source: 'manual', activityKcalMode: 'add_to_daily_total' }
+      ]
+    })], '2026-08-01')
+
+    expect(summary.averageActiveKcal).toBe(771)
+  })
 })

@@ -1,4 +1,4 @@
-import { average, dailyDeficit, movingAverage, targetWeightForDate } from './calculations'
+import { average, dailyDeficit, effectiveActiveKcal, movingAverage, targetWeightForDate } from './calculations'
 import type { ChallengeSettings, DailyLog } from './types'
 
 export interface Advice { level: 'good' | 'near' | 'warn'; text: string }
@@ -7,13 +7,14 @@ export const buildAdvice = (current: DailyLog, logs: DailyLog[], settings: Chall
   const advice: Advice[] = []
   const ordered = [...logs].filter((log) => log.date <= current.date).sort((a, b) => a.date.localeCompare(b.date))
   const previous = ordered.at(-2)
+  const currentActivity = effectiveActiveKcal(current)
 
   if ((current.sleepHours ?? settings.sleepMinimumHours) < settings.sleepMinimumHours || (current.fatigueLevel ?? 1) >= 4) {
     advice.push({ level: 'near', text: `今天以恢復為先，不增加運動量；活動能量可暫降到約 ${Math.round(settings.activeKcalMinimum * .9)}–${settings.activeKcalMinimum} kcal。` })
-  } else if ((current.activeKcal ?? 0) < settings.activeKcalMinimum) {
-    advice.push({ level: 'near', text: '若身體感覺良好，可增加 15–20 分鐘輕鬆走路或超慢跑。' })
+  } else if ((currentActivity ?? 0) < settings.activeKcalMinimum) {
+    advice.push({ level: 'near', text: '目前活動尚未達基本目標；若今天稍晚身體感覺良好，可增加 15–20 分鐘輕鬆走路或超慢跑。' })
   } else {
-    advice.push({ level: 'good', text: '活動能量已達基本目標，不需要為了湊數字再做長時間運動。' })
+    advice.push({ level: 'good', text: '目前活動能量已達基本目標，不需要為了湊數字再做長時間運動。' })
   }
   if ((current.intakeKcal ?? 0) > settings.intakeKcalMaximum) advice.push({ level: 'warn', text: '攝取較高，先檢查油、醬料、泡麵麵體與零食；不需要用懲罰性運動抵銷。' })
   if ((current.proteinG ?? 0) < settings.proteinMinimumG) advice.push({ level: 'near', text: '蛋白質可從雞胸肉、魚、蛋、Skyr、Magerquark 或無糖豆漿補足。' })
@@ -37,7 +38,7 @@ export const buildAdvice = (current: DailyLog, logs: DailyLog[], settings: Chall
     if (threeDaysAgo != null && threeDaysAgo - trend > 1) advice.push({ level: 'near', text: '3 日趨勢下降超過 1 kg，多數可能包含水分，不要繼續降低熱量。' })
     const completion = average(ordered.slice(-3).map((log) => {
       const intakeOk = (log.intakeKcal ?? -1) >= settings.intakeKcalMinimum && (log.intakeKcal ?? Infinity) <= settings.intakeKcalMaximum
-      const activityOk = (log.activeKcal ?? 0) >= settings.activeKcalMinimum
+      const activityOk = (effectiveActiveKcal(log) ?? 0) >= settings.activeKcalMinimum
       return intakeOk && activityOk ? 100 : intakeOk || activityOk ? 50 : 0
     })) ?? 0
     if (trend > targetWeightForDate(current.date, settings) + 0.3 && completion >= 80) {

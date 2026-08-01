@@ -1,4 +1,4 @@
-import { achievementRate, dailyDeficit, daysBetween, movingAverage } from '../calculations'
+import { achievementRate, activityTotals, dailyDeficit, daysBetween, movingAverage } from '../calculations'
 import { buildAdvice } from '../advice'
 import type { ChallengeSettings, DailyLog } from '../types'
 
@@ -37,11 +37,13 @@ export function TodayPage({ today, log, logs, settings, onQuickAdd, onOpenRecord
   const currentDay = Math.min(Math.max(daysBetween(settings.startDate, today) + 1, 1), totalDays)
   const advice = buildAdvice(log, [...logs.filter((item) => item.id !== log.id), log], settings)
   const rate = achievementRate(log, settings)
+  const activity = activityTotals(log)
+  const activeKcal = activity.effectiveActiveKcal
   const workoutMinutes = (log.workouts ?? []).reduce((sum, workout) => sum + workout.durationMinutes, 0)
   const incompleteItems: string[] = []
   if (log.weightKg == null || log.weightCondition !== 'morning_fasted') incompleteItems.push('晨間空腹體重未記錄')
-  if (log.activeKcal == null) incompleteItems.push('活動能量未記錄')
-  else if (log.activeKcal < settings.activeKcalMinimum) incompleteItems.push(`活動能量還差 ${Math.ceil(settings.activeKcalMinimum - log.activeKcal)} kcal`)
+  if (activeKcal == null) incompleteItems.push('目前活動能量未記錄')
+  else if (activeKcal < settings.activeKcalMinimum) incompleteItems.push(`目前活動能量還差 ${Math.ceil(settings.activeKcalMinimum - activeKcal)} kcal`)
   if (log.intakeKcal == null) incompleteItems.push('今日攝取熱量未記錄')
   else if (log.intakeKcal < settings.intakeKcalMinimum) incompleteItems.push(`攝取熱量尚差 ${Math.ceil(settings.intakeKcalMinimum - log.intakeKcal)} kcal 才進入目標範圍`)
   else if (log.intakeKcal > settings.intakeKcalMaximum) incompleteItems.push(`攝取熱量超出目標範圍 ${Math.ceil(log.intakeKcal - settings.intakeKcalMaximum)} kcal`)
@@ -66,13 +68,13 @@ export function TodayPage({ today, log, logs, settings, onQuickAdd, onOpenRecord
     </div>
 
     <div className={`completion-card panel ${incompleteItems.length === 0 ? 'complete' : ''}`}>
-      <div className="completion-heading"><div><span>{incompleteItems.length === 0 ? '今日核心項目' : `尚有 ${incompleteItems.length} 項待完成`}</span><strong>{incompleteItems.length === 0 ? '全部完成，很穩。' : '今天還需要留意'}</strong></div><button type="button" onClick={onOpenRecord}>{incompleteItems.length === 0 ? '查看紀錄' : '前往補記'}</button></div>
+      <div className="completion-heading"><div><span>{incompleteItems.length === 0 ? '目前核心項目' : `尚有 ${incompleteItems.length} 項待更新`}</span><strong>{incompleteItems.length === 0 ? '目前皆已達成，今天仍可繼續更新。' : '今天還在進行中'}</strong></div><button type="button" onClick={onOpenRecord}>{incompleteItems.length === 0 ? '查看紀錄' : '前往更新'}</button></div>
       {incompleteItems.length > 0 && <ul>{incompleteItems.map((item) => <li key={item}>{item}</li>)}</ul>}
     </div>
 
     <div className="section-heading"><h2>今日節奏</h2><span>行為達成率 {rate}%</span></div>
     <div className="panel metrics">
-      <Progress label="活動能量" value={log.activeKcal} goal={settings.activeKcalTarget} unit=" kcal" />
+      <Progress label="活動能量（目前）" value={activeKcal} goal={settings.activeKcalTarget} unit=" kcal" />
       <RangeProgress label="攝取熱量" value={log.intakeKcal} minimum={settings.intakeKcalMinimum} maximum={settings.intakeKcalMaximum} unit=" kcal" />
       <Progress label="蛋白質" value={log.proteinG} goal={settings.proteinMinimumG} unit=" g" />
       <Progress label="白開水" value={log.waterMl} goal={settings.waterMinimumMl} unit=" ml" />
@@ -86,9 +88,9 @@ export function TodayPage({ today, log, logs, settings, onQuickAdd, onOpenRecord
     </div>
 
     <div className="mini-grid">
-      <article className="panel stat"><span>今日推估赤字</span><strong>{deficit == null ? '—' : Math.round(deficit)}<small> kcal</small></strong><p>依 Watch 消耗估算</p></article>
+      <article className="panel stat"><span>截至目前暫估赤字</span><strong>{deficit == null ? '—' : Math.round(deficit)}<small> kcal</small></strong><p>消耗仍會隨今天進度增加</p></article>
       <article className="panel stat"><span>前一晚睡眠</span><strong>{log.sleepHours ?? '—'}<small> 小時</small></strong><p>{(log.sleepHours ?? 0) >= 7 ? '恢復時間充足' : '今天保守一點'}</p></article>
-      <article className="panel stat"><span>運動明細</span><strong>{(log.workouts ?? []).length}<small> 筆</small></strong><p>{workoutMinutes ? `合計 ${workoutMinutes} 分鐘` : '可記錄步行、跑步或重訓'}</p></article>
+      <article className="panel stat"><span>運動明細</span><strong>{(log.workouts ?? []).length}<small> 筆</small></strong><p>{workoutMinutes ? `${workoutMinutes} 分 · ${Math.round(activity.workoutActiveKcal)} kcal${activity.additionalWorkoutActiveKcal ? ` · 待同步 ${Math.round(activity.additionalWorkoutActiveKcal)}` : ''}` : '可記錄步行、跑步或重訓'}</p></article>
     </div>
 
     <div className="section-heading"><h2>今日建議</h2><span>依目前紀錄</span></div>

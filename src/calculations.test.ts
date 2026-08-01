@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { cumulativeDeficit, dailyDeficit, estimatedTDEE, fatEquivalentKg, linearRegressionProjection, movingAverage, targetWeightForDate } from './calculations'
-import { defaultSettings, emptyLog } from './defaults'
+import { cumulativeDeficit, dailyDeficit, estimatedTDEE, fatEquivalentKg, linearRegressionProjection, mealTotals, movingAverage, sleepDurationHours, targetWeightForDate } from './calculations'
+import { defaultMealDetails, defaultSettings, emptyLog } from './defaults'
 
 describe('能量計算', () => {
   it('計算 TDEE 與每日赤字', () => {
@@ -23,6 +23,13 @@ describe('能量計算', () => {
   })
 
   it('計算脂肪等值估算', () => expect(fatEquivalentKg(7700)).toBe(1))
+
+  it('詳細餐點同步計算三大營養素、纖維與鈉', () => {
+    const details = defaultMealDetails()
+    details.breakfast = [{ key: 'test', label: '測試食物', amount: 100, unit: 'g', kcalPerUnit: 2, proteinPerUnit: .2, carbsPerUnit: .3, fatPerUnit: .1, fiberPerUnit: .05, sodiumPerUnit: 1.5 }]
+    details.lunch = []; details.dinner = []; details.evening = []; details.ramen.enabled = false
+    expect(mealTotals(details)).toEqual({ kcal: 200, protein: 20, carbs: 30, fat: 10, fiber: 5, sodium: 150 })
+  })
 })
 
 describe('體重趨勢', () => {
@@ -49,4 +56,10 @@ describe('體重趨勢', () => {
     ], '2026-08-08')
     expect(result).toBeCloseTo(79.8, 5)
   })
+})
+
+describe('睡眠歸檔', () => {
+  it('跨午夜計算前一晚睡眠', () => expect(sleepDurationHours('23:53', '06:53')).toBe(7))
+  it('同一天時間不額外加 24 小時', () => expect(sleepDurationHours('00:30', '07:00')).toBe(6.5))
+  it('缺少起訖時間不製造數字', () => expect(sleepDurationHours('23:30')).toBeUndefined())
 })

@@ -2,6 +2,8 @@ export type WeightCondition = 'morning_fasted' | 'other'
 export type BowelMovement = 'none' | 'yes'
 export type SaltLevel = 'normal' | 'high'
 export type ThemeMode = 'dark' | 'light'
+export type WorkoutType = 'walk' | 'slow_jog' | 'run' | 'strength' | 'cycling' | 'other'
+export type WorkoutSource = 'apple_watch' | 'manual'
 
 export interface MealLine {
   key: string
@@ -10,11 +12,40 @@ export interface MealLine {
   unit: 'g' | 'ml' | '份' | '顆'
   kcalPerUnit: number
   proteinPerUnit: number
+  carbsPerUnit?: number
+  fatPerUnit?: number
+  fiberPerUnit?: number
+  sodiumPerUnit?: number
+}
+
+export interface WorkoutEntry {
+  id: string
+  type: WorkoutType
+  title: string
+  startTime?: string
+  durationMinutes: number
+  activeKcal?: number
+  totalKcal?: number
+  distanceKm?: number
+  averageHeartRate?: number
+  maxHeartRate?: number
+  perceivedExertion?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10
+  muscleGroup?: string
+  sets?: number
+  reps?: number
+  weightKg?: number
+  rir?: number
+  source: WorkoutSource
+  notes?: string
 }
 
 export interface RamenMeal {
   enabled: boolean
   packageKcal: number
+  packageProteinG?: number
+  packageCarbsG?: number
+  packageFatG?: number
+  packageSodiumMg?: number
   noodleRatio: number
   seasoningRatio: number
   oilRatio: number
@@ -46,10 +77,19 @@ export interface DailyLog {
   steps?: number
   distanceKm?: number
   standingHours?: number
+  restingHeartRate?: number
+  heartRateVariabilityMs?: number
+  workouts?: WorkoutEntry[]
   intakeKcal?: number
   proteinG?: number
+  carbsG?: number
+  fatG?: number
+  fiberG?: number
+  sodiumMg?: number
   waterMl?: number
   sleepHours?: number
+  sleepStartedAt?: string
+  sleepEndedAt?: string
   sleepQuality?: 1 | 2 | 3 | 4 | 5
   hungerLevel?: 1 | 2 | 3 | 4 | 5
   fatigueLevel?: 1 | 2 | 3 | 4 | 5
@@ -99,6 +139,10 @@ export interface CustomFood {
   basis: '100g' | 'serving'
   kcal: number
   proteinG: number
+  carbsG?: number
+  fatG?: number
+  fiberG?: number
+  sodiumMg?: number
   defaultAmount: number
 }
 

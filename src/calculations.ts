@@ -16,6 +16,17 @@ export const localDateString = (date = new Date()): string => {
 export const daysBetween = (start: string, end: string): number =>
   Math.round((parseLocalDate(end).getTime() - parseLocalDate(start).getTime()) / 86_400_000)
 
+export const sleepDurationHours = (startedAt?: string, endedAt?: string): number | undefined => {
+  if (!startedAt || !endedAt) return undefined
+  const [startHour, startMinute] = startedAt.split(':').map(Number)
+  const [endHour, endMinute] = endedAt.split(':').map(Number)
+  if (![startHour, startMinute, endHour, endMinute].every(Number.isFinite)) return undefined
+  const start = startHour * 60 + startMinute
+  let end = endHour * 60 + endMinute
+  if (end < start) end += 24 * 60
+  return Math.round((end - start) / 60 * 100) / 100
+}
+
 export const estimatedTDEE = (log: DailyLog): number | undefined => {
   if (log.restingKcal == null || log.activeKcal == null) return undefined
   return log.restingKcal + log.activeKcal
@@ -68,18 +79,35 @@ export const linearRegressionProjection = (
   return yMean + slope * (x - xMean)
 }
 
-export const mealTotals = (details: MealDetails): { kcal: number; protein: number } => {
+export interface NutritionTotals { kcal: number; protein: number; carbs: number; fat: number; fiber: number; sodium: number }
+
+export const mealTotals = (details: MealDetails): NutritionTotals => {
   const lines = [...details.breakfast, ...details.lunch, ...details.dinner, ...details.evening]
   let kcal = lines.reduce((sum, line) => sum + line.amount * line.kcalPerUnit, 0)
   let protein = lines.reduce((sum, line) => sum + line.amount * line.proteinPerUnit, 0)
+  let carbs = lines.reduce((sum, line) => sum + line.amount * (line.carbsPerUnit ?? 0), 0)
+  let fat = lines.reduce((sum, line) => sum + line.amount * (line.fatPerUnit ?? 0), 0)
+  let fiber = lines.reduce((sum, line) => sum + line.amount * (line.fiberPerUnit ?? 0), 0)
+  let sodium = lines.reduce((sum, line) => sum + line.amount * (line.sodiumPerUnit ?? 0), 0)
   if (details.ramen.enabled) {
     const ramen = details.ramen
     const soupFactor = ramen.drankSoup ? 1 : 0.85
-    kcal += ramen.packageKcal * (ramen.noodleRatio * 0.72 + ramen.seasoningRatio * 0.08 + ramen.oilRatio * 0.2) * soupFactor
+    const consumedFactor = (ramen.noodleRatio * 0.72 + ramen.seasoningRatio * 0.08 + ramen.oilRatio * 0.2) * soupFactor
+    const sodiumFactor = (ramen.noodleRatio * 0.15 + ramen.seasoningRatio * 0.75 + ramen.oilRatio * 0.1) * soupFactor
+    kcal += ramen.packageKcal * consumedFactor
+    protein += (ramen.packageProteinG ?? 0) * consumedFactor
+    carbs += (ramen.packageCarbsG ?? 0) * consumedFactor
+    fat += (ramen.packageFatG ?? 0) * consumedFactor
+    sodium += (ramen.packageSodiumMg ?? 0) * sodiumFactor
     kcal += ramen.chickenG * 1.2 + ramen.vegetablesG * 0.35
     protein += ramen.chickenG * 0.225 + ramen.vegetablesG * 0.02
+    carbs += ramen.vegetablesG * 0.07
+    fat += ramen.chickenG * 0.026 + ramen.vegetablesG * 0.002
+    fiber += ramen.vegetablesG * 0.025
+    sodium += ramen.chickenG * 0.45 + ramen.vegetablesG * 0.3
   }
-  return { kcal: Math.round(kcal), protein: Math.round(protein * 10) / 10 }
+  const oneDecimal = (value: number) => Math.round(value * 10) / 10
+  return { kcal: Math.round(kcal), protein: oneDecimal(protein), carbs: oneDecimal(carbs), fat: oneDecimal(fat), fiber: oneDecimal(fiber), sodium: Math.round(sodium) }
 }
 
 export const achievementRate = (log: DailyLog, settings: ChallengeSettings): number => {

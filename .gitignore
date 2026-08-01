@@ -11,3 +11,5 @@ vite.config.d.ts
 80kg-sprint-backup-*.json
 80kg-sprint-*.csv
 80kg-sprint-summary-*.txt
+80kg-sprint-report-*.png
+80kg-sprint-report-*.pdf

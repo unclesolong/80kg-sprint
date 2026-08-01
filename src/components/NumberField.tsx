@@ -10,13 +10,16 @@ interface NumberFieldProps {
 }
 
 export function NumberField({ label, value, onChange, unit, step = 1, min = 0, max, quick }: NumberFieldProps) {
+  const inputId = useId()
   const change = (next: number) => onChange(Math.max(min, max == null ? next : Math.min(max, next)))
   return <div className="field-block">
-    <label>{label}</label>
+    <label htmlFor={inputId}>{label}</label>
     <div className="number-control">
       <button type="button" aria-label={`${label}減少`} onClick={() => change((value ?? 0) - step)}>−</button>
       <div className="input-with-unit">
         <input
+          id={inputId}
+          aria-label={`${label}${unit ? ` ${unit}` : ''}`}
           inputMode="decimal"
           type="number"
           min={min}
@@ -33,3 +36,4 @@ export function NumberField({ label, value, onChange, unit, step = 1, min = 0, m
     {quick && <div className="quick-row">{quick.map((amount) => <button type="button" className="chip" key={amount} onClick={() => change((value ?? 0) + amount)}>+{amount}</button>)}</div>}
   </div>
 }
+import { useId } from 'react'

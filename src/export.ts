@@ -14,8 +14,10 @@ export const downloadText = (filename: string, content: string, type = 'text/pla
   const anchor = document.createElement('a')
   anchor.href = url
   anchor.download = filename
+  document.body.appendChild(anchor)
   anchor.click()
-  URL.revokeObjectURL(url)
+  anchor.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 30_000)
 }
 
 const show = (value: number | undefined, suffix = '') => value == null ? '—' : `${Math.round(value * 10) / 10}${suffix}`
@@ -31,6 +33,10 @@ export const buildWeeklySummary = (settings: ChallengeSettings, logs: DailyLog[]
 腰圍：${show(log.waistCm, ' cm')}
 攝取熱量：${show(log.intakeKcal, ' kcal')}
 蛋白質：${show(log.proteinG, ' g')}
+碳水：${show(log.carbsG, ' g')}
+脂肪：${show(log.fatG, ' g')}
+纖維：${show(log.fiberG, ' g')}
+鈉：${show(log.sodiumMg, ' mg')}
 Apple Watch靜態能量：${show(log.restingKcal, ' kcal')}
 Apple Watch活動能量：${show(log.activeKcal, ' kcal')}
 推估總消耗：${show(estimatedTDEE(log), ' kcal')}
@@ -39,8 +45,11 @@ Apple Watch活動能量：${show(log.activeKcal, ' kcal')}
 運動分鐘：${show(log.exerciseMinutes, ' 分')}
 超慢跑分鐘：${show(log.slowJogMinutes, ' 分')}
 平均運動心率：${show(log.averageExerciseHeartRate, ' bpm')}
+靜息心率：${show(log.restingHeartRate, ' bpm')}
+HRV：${show(log.heartRateVariabilityMs, ' ms')}
+運動明細：${log.workouts?.length ? log.workouts.map((workout) => `${workout.title} ${workout.durationMinutes}分${workout.distanceKm == null ? '' : ` ${workout.distanceKm}km`}${workout.activeKcal == null ? '' : ` ${workout.activeKcal}kcal`}（${workout.source === 'apple_watch' ? 'Apple Watch' : '手動'}）`).join('；') : '—'}
 白開水：${show(log.waterMl, ' ml')}
-前一晚睡眠：${show(log.sleepHours, ' 小時')}
+前一晚睡眠：${show(log.sleepHours, ' 小時')}${log.sleepStartedAt || log.sleepEndedAt ? `（${log.sleepStartedAt || '—'} → ${log.sleepEndedAt || '—'}，歸在醒來日）` : ''}
 排便：${log.bowelMovement === 'yes' ? '有' : '無'}
 Bristol型態：${show(log.bristolType)}
 高鹽餐：${log.highSaltMeal ? '是' : '否'}
@@ -48,7 +57,9 @@ Bristol型態：${show(log.bristolType)}
 飢餓：${show(log.hungerLevel)}
 備註：${log.notes || '—'}`).join('\n\n')
   const day = Math.max(1, Math.min(Math.round((new Date(`${today}T12:00:00`).getTime() - new Date(`${settings.startDate}T12:00:00`).getTime()) / 86_400_000) + 1, Math.max(1, Math.round((new Date(`${settings.finalWeighInDate}T12:00:00`).getTime() - new Date(`${settings.startDate}T12:00:00`).getTime()) / 86_400_000))))
-  const completeness = ordered.length ? Math.round(ordered.filter((log) => log.intakeKcal != null && log.activeKcal != null && log.weightKg != null).length / ordered.length * 100) : 0
+  const reportEnd = today < settings.finalWeighInDate ? today : settings.finalWeighInDate
+  const expectedDays = reportEnd < settings.startDate ? 0 : Math.max(1, Math.round((new Date(`${reportEnd}T12:00:00`).getTime() - new Date(`${settings.startDate}T12:00:00`).getTime()) / 86_400_000) + 1)
+  const completeness = expectedDays ? Math.round(ordered.filter((log) => log.date <= reportEnd && log.intakeKcal != null && log.activeKcal != null && log.weightKg != null).length / expectedDays * 100) : 0
   return `【80KG Sprint 一週紀錄】
 挑戰日期：${settings.startDate} 至 ${settings.finalWeighInDate}
 基準體重：${settings.baselineWeightKg} kg
@@ -67,12 +78,14 @@ ${records || '尚無紀錄'}
 累積推估赤字：${show(cumulative, ' kcal')}
 脂肪等值估算：${show(fatEquivalentKg(cumulative), ' kg')}
 最終日預測體重：${prediction == null ? '資料不足（需至少3筆晨間體重）' : `${show(prediction, ' kg')}（約 ±0.5 kg 水分波動，預測不是保證）`}
-資料完整率：${completeness}%`
+資料完整率：${completeness}%（以挑戰開始至 ${reportEnd} 的預期天數計算）
+
+分析提醒：運動明細的熱量已包含在 Apple Watch 每日活動能量時，不可再次相加。此摘要是紀錄與估算，不是醫療診斷。`
 }
 
 export const buildCsv = (logs: DailyLog[]): string => {
-  const headers = ['日期', '體重kg', '量測條件', '腰圍cm', '活動kcal', '靜態kcal', '攝取kcal', '蛋白質g', '白開水ml', '步數', '運動分鐘', '超慢跑分鐘', '平均心率', '睡眠小時', '排便', 'Bristol', '疲勞', '飢餓', '備註']
+  const headers = ['日期', '體重kg', '量測條件', '腰圍cm', '活動kcal', '靜態kcal', '攝取kcal', '蛋白質g', '碳水g', '脂肪g', '纖維g', '鈉mg', '白開水ml', '步數', '距離km', '運動分鐘', '運動明細數', '運動明細JSON', '平均心率', '靜息心率', 'HRVms', '睡眠開始', '睡眠結束', '睡眠小時', '排便', 'Bristol', '疲勞', '飢餓', '備註']
   const escape = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`
-  const rows = [...logs].sort((a, b) => a.date.localeCompare(b.date)).map((log) => [log.date, log.weightKg, log.weightCondition, log.waistCm, log.activeKcal, log.restingKcal, log.intakeKcal, log.proteinG, log.waterMl, log.steps, log.exerciseMinutes, log.slowJogMinutes, log.averageExerciseHeartRate, log.sleepHours, log.bowelMovement, log.bristolType, log.fatigueLevel, log.hungerLevel, log.notes].map(escape).join(','))
+  const rows = [...logs].sort((a, b) => a.date.localeCompare(b.date)).map((log) => [log.date, log.weightKg, log.weightCondition, log.waistCm, log.activeKcal, log.restingKcal, log.intakeKcal, log.proteinG, log.carbsG, log.fatG, log.fiberG, log.sodiumMg, log.waterMl, log.steps, log.distanceKm, log.exerciseMinutes, log.workouts?.length ?? 0, log.workouts?.length ? JSON.stringify(log.workouts) : '', log.averageExerciseHeartRate, log.restingHeartRate, log.heartRateVariabilityMs, log.sleepStartedAt, log.sleepEndedAt, log.sleepHours, log.bowelMovement, log.bristolType, log.fatigueLevel, log.hungerLevel, log.notes].map(escape).join(','))
   return `\uFEFF${headers.map(escape).join(',')}\n${rows.join('\n')}`
 }

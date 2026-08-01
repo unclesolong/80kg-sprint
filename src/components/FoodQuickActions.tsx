@@ -8,7 +8,7 @@ export function FoodQuickActions({ log, templates, onChange, quickOnly = false }
   onChange: (patch: Partial<DailyLog>) => void
   quickOnly?: boolean
 }) {
-  const [toast, setToast] = useState<{ name: string; undo: FoodUndoPatch }>()
+  const [toast, setToast] = useState<{ name: string; kcal: number; proteinG: number; undo: FoodUndoPatch }>()
   const timer = useRef<number | undefined>(undefined)
   const visible = quickOnly ? templates.filter((template) => template.quick) : templates
 
@@ -17,7 +17,7 @@ export function FoodQuickActions({ log, templates, onChange, quickOnly = false }
   const add = (template: FoodTemplate) => {
     const change = createFoodTemplateChange(log, template)
     onChange(change.patch)
-    setToast({ name: template.name, undo: change.undoPatch })
+    setToast({ name: template.name, kcal: template.kcal, proteinG: template.proteinG, undo: change.undoPatch })
     if (timer.current) window.clearTimeout(timer.current)
     timer.current = window.setTimeout(() => setToast(undefined), 5000)
   }
@@ -35,6 +35,6 @@ export function FoodQuickActions({ log, templates, onChange, quickOnly = false }
         <strong>{template.name}</strong><small>約 {Math.round(template.kcal)} kcal · P {Math.round(template.proteinG)}g</small>
       </button>)}
     </div>
-    {toast && <div className="undo-toast" role="status"><span>已加入{toast.name}</span><button type="button" onClick={undo}>復原</button></div>}
+    {toast && <div className="undo-toast" role="status"><span>已加入{toast.name}<small>＋{Math.round(toast.kcal)} kcal · 蛋白質＋{Math.round(toast.proteinG)} g</small></span><button type="button" onClick={undo}>復原</button></div>}
   </>
 }

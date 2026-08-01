@@ -3,11 +3,11 @@ import type { ChallengeSettings, DailyLog, FoodTemplate, MealDetails } from './t
 export const defaultFoodTemplates = (): FoodTemplate[] => [
   { id: 'fixed_breakfast', name: '固定早餐', description: '荷包蛋2顆、油5g、英式瑪芬、柳橙汁250ml、FAGE 250g、黑咖啡', meal: 'breakfast', quick: true, kcal: 660, proteinG: 44, carbsG: 63, fatG: 20, fiberG: 2, sodiumMg: 480 },
   { id: 'fage_250', name: 'FAGE 250g', description: 'FAGE Total 0.2% 250g；請依實際包裝修正', meal: 'evening', quick: true, kcal: 183, proteinG: 25, carbsG: 10, fatG: 1, fiberG: 0, sodiumMg: 100 },
-  { id: 'chicken_200', name: '雞胸肉200g', description: '雞胸肉生重200g', meal: 'lunch', quick: true, kcal: 240, proteinG: 45, carbsG: 0, fatG: 5, fiberG: 0, sodiumMg: 90 },
-  { id: 'chicken_rice', name: '雞胸白飯餐', description: '雞胸肉200g、蔬菜300g、熟白飯100g、油5g', meal: 'lunch', kcal: 520, proteinG: 54, carbsG: 49, fatG: 11, fiberG: 8, sodiumMg: 180 },
-  { id: 'chicken_pasta', name: '雞胸義大利麵餐', description: '雞胸肉200g、蔬菜300g、乾義大利麵60g、油5g', meal: 'dinner', kcal: 603, proteinG: 59, carbsG: 64, fatG: 12, fiberG: 9, sodiumMg: 180 },
+  { id: 'chicken_200', name: '雞胸肉200g', description: '雞胸肉生重200g', meal: 'lunch', kcal: 240, proteinG: 45, carbsG: 0, fatG: 5, fiberG: 0, sodiumMg: 90 },
+  { id: 'chicken_rice', name: '雞胸白飯餐', description: '雞胸肉200g、蔬菜300g、熟白飯100g、油5g', meal: 'lunch', quick: true, kcal: 520, proteinG: 54, carbsG: 49, fatG: 11, fiberG: 8, sodiumMg: 180 },
+  { id: 'chicken_pasta', name: '雞胸義大利麵餐', description: '雞胸肉200g、蔬菜300g、乾義大利麵60g、油5g', meal: 'dinner', quick: true, kcal: 603, proteinG: 59, carbsG: 64, fatG: 12, fiberG: 9, sodiumMg: 180 },
   { id: 'soy_chia', name: '豆漿＋奇亞籽', description: '無糖豆漿250ml、奇亞籽15g、大麥若葉粉5g', meal: 'evening', quick: true, kcal: 173, proteinG: 11, carbsG: 11, fatG: 9, fiberG: 7, sodiumMg: 90 },
-  { id: 'ramen_chicken', name: '泡麵雞胸版', description: '泡麵、雞胸肉與蔬菜；詳細比例請在進階營養的泡麵模板調整', meal: 'dinner', kcal: 650, proteinG: 50, carbsG: 58, fatG: 20, fiberG: 7, sodiumMg: 1300 }
+  { id: 'ramen_chicken', name: '泡麵雞胸版', description: '泡麵、雞胸肉與蔬菜；詳細比例請在進階營養的泡麵模板調整', meal: 'dinner', quick: true, kcal: 650, proteinG: 50, carbsG: 58, fatG: 20, fiberG: 7, sodiumMg: 1300 }
 ]
 
 export const defaultSettings: ChallengeSettings = {

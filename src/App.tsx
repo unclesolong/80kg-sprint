@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { ChartNoAxesCombined, Home, PlusCircle, Settings } from 'lucide-react'
 import { registerSW } from 'virtual:pwa-register'
 import { localDateString } from './calculations'
 import { clearAllData, deleteFood, loadAll, replaceAllData, saveFood, saveLog, saveSettings } from './db'
@@ -76,14 +77,14 @@ export default function App() {
     {installHint && <div className="install-hint"><span>在 iPhone Safari 按分享，再選擇「加入主畫面」。</span><button aria-label="關閉安裝提示" onClick={() => { localStorage.setItem('80kg-install-hint-dismissed', '1'); setInstallHint(false) }}>×</button></div>}
     <main>
       {tab === 'today' && <TodayPage today={today} log={todayLog} logs={logs} settings={settings} onQuickAdd={(patch) => updateLog(today, patch)} onOpenRecord={(stage) => { setRecordStage(stage); setSelectedDate(today); setTab('record') }} />}
-      {tab === 'record' && <RecordPage date={selectedDate} log={currentLog} foods={foods} settings={settings} initialStage={recordStage} saveState={recordSaveState} onDate={setSelectedDate} onChange={(patch) => updateLog(selectedDate, patch)} onSaveFood={addFood} onDeleteFood={removeFood} onDone={() => setTab('today')} />}
+      {tab === 'record' && <RecordPage date={selectedDate} log={currentLog} logs={logs} foods={foods} settings={settings} initialStage={recordStage} saveState={recordSaveState} onDate={setSelectedDate} onChange={(patch) => updateLog(selectedDate, patch)} onSaveFood={addFood} onDeleteFood={removeFood} />}
       {tab === 'trends' && <Suspense fallback={<div className="loading-inline">載入趨勢圖表…</div>}><TrendsPage logs={logs} settings={settings} /></Suspense>}
       {tab === 'settings' && <SettingsPage today={today} settings={settings} logs={logs} foods={foods} onSettings={updateSettings} onImport={importData} onClear={clearData} />}
     </main>
     <nav className="bottom-nav" aria-label="主要導覽">
       {([
-        ['today', '⌂', '今日'], ['record', '＋', '紀錄'], ['trends', '↗', '趨勢'], ['settings', '⚙', '設定']
-      ] as const).map(([key, icon, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}><span>{icon}</span>{label}</button>)}
+        ['today', Home, '今日'], ['record', PlusCircle, '紀錄'], ['trends', ChartNoAxesCombined, '趨勢'], ['settings', Settings, '設定']
+      ] as const).map(([key, Icon, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}><Icon aria-hidden="true" />{label}</button>)}
     </nav>
   </div>
 }

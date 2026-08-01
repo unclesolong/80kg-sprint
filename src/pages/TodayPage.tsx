@@ -1,5 +1,7 @@
-import { achievementRate, activityTotals, dailyCompletion, daysBetween, finalizedDeficit, remainingActivity, remainingFoodBudget, weightTrendStatus } from '../calculations'
+import { useEffect, useRef, useState } from 'react'
+import { Check, ChevronRight, Droplets, Footprints, Moon, Scale, Utensils } from 'lucide-react'
 import { buildAdvice } from '../advice'
+import { achievementRate, activityTotals, dailyCompletion, daysBetween, finalizedCumulativeDeficit, finalizedDeficit, remainingActivity, remainingFoodBudget, weightTrendStatus } from '../calculations'
 import { FoodQuickActions } from '../components/FoodQuickActions'
 import type { ChallengeSettings, DailyLog, RecordStage } from '../types'
 
@@ -13,10 +15,12 @@ export function TodayPage({ today, log, logs, settings, onQuickAdd, onOpenRecord
   onQuickAdd: (patch: Partial<DailyLog>) => void
   onOpenRecord: (stage: RecordStage) => void
 }) {
+  const [waterToast, setWaterToast] = useState<{ amount: number; previous?: number }>()
+  const waterTimer = useRef<number | undefined>(undefined)
+  useEffect(() => () => { if (waterTimer.current) window.clearTimeout(waterTimer.current) }, [])
+
   const allLogs = [...logs.filter((item) => item.id !== log.id), log]
-  const morning = allLogs
-    .filter((item) => item.date <= today && item.weightCondition === 'morning_fasted' && item.weightKg != null)
-    .sort((a, b) => a.date.localeCompare(b.date))
+  const morning = allLogs.filter((item) => item.date <= today && item.weightCondition === 'morning_fasted' && item.weightKg != null).sort((a, b) => a.date.localeCompare(b.date))
   const currentWeight = morning.at(-1)?.weightKg
   const totalDays = Math.max(daysBetween(settings.startDate, settings.finalWeighInDate), 1)
   const currentDay = Math.min(Math.max(daysBetween(settings.startDate, today) + 1, 1), totalDays)
@@ -27,49 +31,75 @@ export function TodayPage({ today, log, logs, settings, onQuickAdd, onOpenRecord
   const completion = dailyCompletion(log, settings)
   const advice = buildAdvice(log, allLogs, settings)
   const deficit = finalizedDeficit(log)
-  const templates = settings.foodTemplates ?? []
+  const cumulative = finalizedCumulativeDeficit(allLogs, settings)
+  const homeTemplateIds = ['fixed_breakfast', 'fage_250', 'chicken_rice', 'chicken_pasta', 'ramen_chicken', 'soy_chia']
+  const templates = homeTemplateIds.flatMap((id) => (settings.foodTemplates ?? []).find((template) => template.id === id) ?? [])
 
-  const previous = allLogs.filter((item) => item.date < today).sort((a, b) => a.date.localeCompare(b.date)).at(-1)
+  const priorLogs = allLogs.filter((item) => item.date < today).sort((a, b) => a.date.localeCompare(b.date))
+  const previous = priorLogs.at(-1)
+  const beforePrevious = priorLogs.at(-2)
   const legIncreasing = previous?.lowerLegTightness != null && log.lowerLegTightness != null && log.lowerLegTightness > previous.lowerLegTightness
+  const legWorseningTwoDays = legIncreasing && beforePrevious?.lowerLegTightness != null && previous!.lowerLegTightness! > beforePrevious.lowerLegTightness
   let action: { title: string; detail: string; stage: RecordStage; tone: 'good' | 'near' | 'warn' }
-  if ((log.lowerLegTightness ?? 0) >= 3) action = { title: '小腿緊繃，今天不補跑', detail: '改成輕鬆走路或休息，不追 660 kcal。', stage: 'morning', tone: 'warn' }
-  else if (log.lowerLegTightness === 2 || legIncreasing) action = { title: '今天先保護下肢', detail: '不要補跑；若自然走路沒有加劇，可輕鬆走 10–20 分鐘。', stage: 'morning', tone: 'near' }
+  if (legWorseningTwoDays) action = { title: '小腿連續兩天惡化，今天恢復', detail: '停止補跑，改成休息或不痛的輕鬆走路；若持續惡化請尋求專業評估。', stage: 'morning', tone: 'warn' }
+  else if ((log.lowerLegTightness ?? 0) >= 3) action = { title: '今天是恢復日，不補跑', detail: '活動以 500–550 kcal 為上限參考，優先走路或休息。', stage: 'morning', tone: 'warn' }
+  else if (log.lowerLegTightness === 2 || legIncreasing) action = { title: '今天先保護下肢', detail: '不要補跑；自然走路沒有加劇時，輕鬆走 10–20 分鐘即可。', stage: 'morning', tone: 'near' }
   else if (log.weightKg == null || log.weightCondition !== 'morning_fasted') action = { title: '先記錄晨間體重', detail: '起床、上完廁所後量一次即可。', stage: 'morning', tone: 'near' }
   else if (log.sleepHours == null) action = { title: '補上前一晚睡眠', detail: '填寫睡眠時數與下肢緊繃程度。', stage: 'morning', tone: 'near' }
-  else if (log.intakeKcal == null) action = { title: '更新今天已吃的食物', detail: '可用快捷模板，或直接填目前總熱量。', stage: 'food', tone: 'near' }
-  else if ((log.proteinG ?? 0) < settings.proteinMinimumG) action = { title: '下一餐優先安排蛋白質', detail: `目前 ${rounded(log.proteinG)}g，目標至少 ${settings.proteinMinimumG}g。`, stage: 'food', tone: 'near' }
-  else if ((log.waterMl ?? 0) < settings.waterMinimumMl) action = { title: '再補一些白開水', detail: `目前 ${rounded(log.waterMl)}ml，分次補到約 ${settings.waterMinimumMl}ml。`, stage: 'food', tone: 'near' }
+  else if ((log.waterMl ?? 0) < settings.waterMinimumMl - 500) action = { title: '先補 500 ml 白開水', detail: `目前 ${rounded(log.waterMl)} ml，分兩次喝完即可。`, stage: 'food', tone: 'near' }
+  else if (log.intakeKcal == null) action = { title: '更新今天已吃的食物', detail: '用真實餐點快捷加入，熱量與營養素會一起計算。', stage: 'food', tone: 'near' }
+  else if ((log.proteinG ?? 0) < settings.proteinMinimumG) action = { title: '下一餐優先安排蛋白質', detail: `目前 ${rounded(log.proteinG)} g，目標至少 ${settings.proteinMinimumG} g。`, stage: 'food', tone: 'near' }
   else if (activity.effectiveActiveKcal == null || log.restingKcal == null || log.exerciseMinutes == null || log.steps == null) action = { title: '晚上抄入 Watch 四個數字', detail: '活動、靜態能量、運動分鐘與步數。', stage: 'evening', tone: 'near' }
-  else if (log.hungerLevel == null || log.fatigueLevel == null) action = { title: '補上今晚的身體感受', detail: '記錄飢餓、疲勞，再檢查高鹽餐。', stage: 'evening', tone: 'near' }
-  else if (!log.dayFinalized) action = { title: '今天可以結算', detail: '確認 Watch 與飲食是最新數字，再完成晚間結算。', stage: 'evening', tone: 'good' }
-  else action = { title: '今日已結算', detail: '若再吃東西或更新 Watch，系統會自動要求重新結算。', stage: 'evening', tone: 'good' }
+  else if (log.hungerLevel == null || log.fatigueLevel == null || log.highSaltMeal == null) action = { title: '補上今晚的身體感受', detail: '記錄飢餓、疲勞與高鹽餐，再完成結算。', stage: 'evening', tone: 'near' }
+  else if (!log.dayFinalized) action = { title: '今天可以完成結算', detail: activityRemaining === 0 ? '活動已達基本目標，不需要再補跑。' : `活動還差 ${rounded(activityRemaining)} kcal；晚餐後輕鬆走即可。`, stage: 'evening', tone: 'good' }
+  else action = { title: '今天完成了，可以休息', detail: '若再吃東西或更新 Watch，系統會自動要求重新結算。', stage: 'evening', tone: 'good' }
+
+  const morningDone = log.weightKg != null && log.sleepHours != null && log.bowelMovement !== 'unrecorded' && log.lowerLegTightness != null
+  const foodStarted = log.intakeKcal != null || log.waterMl != null
+  const foodDone = log.intakeKcal != null && log.proteinG != null && log.waterMl != null
+  const eveningStarted = activity.effectiveActiveKcal != null || log.restingKcal != null || log.exerciseMinutes != null || log.steps != null
+  const stages: Array<{ id: RecordStage; label: string; note: string; status: '未完成' | '進行中' | '已完成'; Icon: typeof Scale }> = [
+    { id: 'morning', label: '早上紀錄', note: '體重 · 睡眠', status: morningDone ? '已完成' : '未完成', Icon: Scale },
+    { id: 'food', label: '更新飲食', note: '餐點 · 白水', status: foodDone ? '已完成' : foodStarted ? '進行中' : '未完成', Icon: Utensils },
+    { id: 'evening', label: '晚間結算', note: 'Watch · 感受', status: log.dayFinalized ? '已完成' : eveningStarted ? '進行中' : '未完成', Icon: Moon }
+  ]
+
+  const addWater = (amount: number) => {
+    const previousWater = log.waterMl
+    onQuickAdd({ waterMl: (previousWater ?? 0) + amount })
+    setWaterToast({ amount, previous: previousWater })
+    if (waterTimer.current) window.clearTimeout(waterTimer.current)
+    waterTimer.current = window.setTimeout(() => setWaterToast(undefined), 5000)
+  }
 
   return <section className="page today-page sprint-home">
-    <header className="sprint-hero">
-      <div><p className="eyebrow">80KG SPRINT · 第 {currentDay}／{totalDays} 天</p><h1>{settings.baselineWeightKg.toFixed(1)} <span>→</span> {settings.targetWeightKg.toFixed(1)} kg</h1><p>最近晨間 {currentWeight?.toFixed(1) ?? '—'} kg · 距離目標 {currentWeight == null ? '—' : Math.max(0, currentWeight - settings.targetWeightKg).toFixed(1)} kg</p></div>
-      <span className={`finalized-badge ${log.dayFinalized ? 'done' : ''}`}>{log.dayFinalized ? '今日已結算' : '今日尚未結算'}</span>
+    <header className="sprint-hero hero-card">
+      <div className="hero-top"><span>第 {currentDay}／{totalDays} 天</span><span className={`finalized-badge ${log.dayFinalized ? 'done' : ''}`}>{log.dayFinalized ? <><Check size={14} /> 已結算</> : '尚未結算'}</span></div>
+      <div className="hero-weight"><strong>{settings.baselineWeightKg.toFixed(1)}</strong><span>kg</span><i>→</i><strong>{settings.targetWeightKg.toFixed(1)}</strong><span>kg</span></div>
+      <p>最新晨間 <b>{currentWeight?.toFixed(1) ?? '—'} kg</b><span>距離目標 {currentWeight == null ? '—' : Math.max(0, currentWeight - settings.targetWeightKg).toFixed(1)} kg</span></p>
+      <div className="sprint-nodes" aria-label={`第 ${currentDay} 天，共 ${totalDays} 天`}>{Array.from({ length: totalDays }, (_, index) => <i key={index} className={index + 1 <= currentDay ? 'active' : ''} />)}</div>
+      <div className={`hero-status ${trend.status}`}><span>{trend.label}</span><small>{trend.detail}</small></div>
     </header>
 
-    <div className={`trend-status panel ${trend.status}`}><div><span>一週體重趨勢</span><strong>{trend.label}</strong><p>{trend.detail}</p></div>{trend.trend != null && <b>{trend.trend.toFixed(1)}<small> kg／3日</small></b>}</div>
-
     <div className="budget-grid">
-      <article className="budget-card food panel"><span>今天還可安排</span><strong>{rounded(foodRemaining)}<small> kcal</small></strong><p>已吃 {rounded(log.intakeKcal)} · 建議上限 {settings.intakeKcalMaximum}</p></article>
-      <article className="budget-card activity panel"><span>{activityRemaining > 0 ? '活動距基本目標' : '活動基本目標已達'}</span><strong>{activityRemaining > 0 ? rounded(activityRemaining) : '完成'}{activityRemaining > 0 && <small> kcal</small>}</strong><p>目前 {rounded(activity.effectiveActiveKcal)} · 基本 {settings.activeKcalMinimum} · 中心 {settings.activeKcalTarget}</p>{activityRemaining === 0 && <em>不需要強迫補跑</em>}</article>
+      <article className="budget-card standard-card"><Utensils aria-hidden="true" /><span>今天還能吃</span><strong>{rounded(foodRemaining)}<small> kcal</small></strong><p>已吃 {rounded(log.intakeKcal)}／{settings.intakeKcalMaximum}</p></article>
+      <article className="budget-card standard-card"><Footprints aria-hidden="true" /><span>{activityRemaining > 0 ? '活動還差' : '基本目標已達'}</span><strong>{activityRemaining > 0 ? rounded(activityRemaining) : '完成'}{activityRemaining > 0 && <small> kcal</small>}</strong><p>目前 {rounded(activity.effectiveActiveKcal)}／{settings.activeKcalMinimum}</p></article>
     </div>
 
-    <button type="button" className={`next-action panel ${action.tone}`} onClick={() => onOpenRecord(action.stage)}><span>現在唯一要做</span><strong>{action.title}</strong><small>{action.detail}</small><i>前往</i></button>
+    <button type="button" className={`next-action standard-card ${action.tone}`} onClick={() => onOpenRecord(action.stage)}><span>今日唯一行動</span><strong>{action.title}</strong><small>{action.detail}</small><ChevronRight aria-hidden="true" /></button>
 
-    <div className="stage-actions" aria-label="今日三階段"><button onClick={() => onOpenRecord('morning')}><span>早</span><strong>早上紀錄</strong><small>體重 · 睡眠 · 恢復</small></button><button onClick={() => onOpenRecord('food')}><span>食</span><strong>更新飲食</strong><small>熱量 · 蛋白 · 水</small></button><button onClick={() => onOpenRecord('evening')}><span>晚</span><strong>晚間結算</strong><small>Watch · 感受 · 結算</small></button></div>
+    <div className="daily-flow flat-section" aria-label="今日三階段">{stages.map(({ id, label, note, status, Icon }) => <button key={id} className={status === '已完成' ? 'done' : status === '進行中' ? 'active' : ''} onClick={() => onOpenRecord(id)}><span className="flow-icon">{status === '已完成' ? <Check /> : <Icon />}</span><strong>{label}</strong><small>{status} · {note}</small></button>)}</div>
 
-    <div className="quick-sprint panel"><div className="quick-water"><button onClick={() => onQuickAdd({ waterMl: (log.waterMl ?? 0) + 250 })}>＋250ml 白水</button><button onClick={() => onQuickAdd({ waterMl: (log.waterMl ?? 0) + 500 })}>＋500ml 白水</button></div><FoodQuickActions log={log} templates={templates} onChange={onQuickAdd} quickOnly /></div>
+    <section className="quick-sprint flat-section"><div className="flat-heading"><h2>快速加入</h2><span>白天隨吃隨記</span></div><div className="quick-water"><button onClick={() => addWater(250)}><Droplets size={18} />＋250 ml</button><button onClick={() => addWater(500)}><Droplets size={18} />＋500 ml</button></div><FoodQuickActions log={log} templates={templates} onChange={onQuickAdd} /></section>
 
-    <details className="more-data panel"><summary><span>更多資料</span><strong>{log.dayFinalized ? `當日達成率 ${achievementRate(log, settings)}%` : `今日已完成 ${completion.completed}／${completion.total} 項`}</strong></summary><div className="more-data-body">
-      {!log.dayFinalized && <p className="not-finalized-note">目前資料尚未完成今日結算，因此不顯示最終赤字。</p>}
-      {log.dayFinalized && <article className="final-deficit"><span>今日最終推估赤字</span><strong>{rounded(deficit)} kcal</strong><p>依最後輸入的 Watch 靜態能量、活動能量與飲食估算。</p></article>}
+    <details className="more-data standard-card"><summary><span>更多資料</span><strong>{log.dayFinalized ? `達成率 ${achievementRate(log, settings)}%` : `完成 ${completion.completed}／${completion.total}`}</strong></summary><div className="more-data-body">
+      {!log.dayFinalized && <p className="not-finalized-note">尚未完成晚間結算，不顯示最終赤字。</p>}
+      {log.dayFinalized && <div className="final-energy-grid"><article><span>今日消耗</span><strong>{rounded((log.restingKcal ?? 0) + (activity.effectiveActiveKcal ?? 0))}</strong><small>kcal</small></article><article><span>今日赤字</span><strong>{rounded(deficit)}</strong><small>kcal</small></article><article><span>7 日累積</span><strong>{rounded(cumulative)}</strong><small>kcal</small></article></div>}
+      <div className="more-metrics"><div><Utensils /><span>蛋白質</span><strong>{rounded(log.proteinG)} g</strong></div><div><Droplets /><span>白開水</span><strong>{rounded(log.waterMl)} ml</strong></div><div><Moon /><span>前一晚睡眠</span><strong>{log.sleepHours ?? '—'} 小時</strong></div><div><Footprints /><span>步數</span><strong>{rounded(log.steps)}</strong></div><div><span className="status-dot" /> <span>排便</span><strong>{log.bowelMovement === 'yes' ? '有' : log.bowelMovement === 'none' ? '沒有' : '未記錄'}</strong></div><div><span className="status-dot" /><span>小腿狀態</span><strong>{log.lowerLegTightness ?? '—'}／5</strong></div></div>
+      <div className="nutrient-line">碳水 {rounded(log.carbsG)} g · 脂肪 {rounded(log.fatG)} g · 纖維 {rounded(log.fiberG)} g</div>
       <div className="completion-list">{completion.items.map((item) => <span className={item.complete ? 'done' : ''} key={item.key}><i />{item.label}</span>)}</div>
-      <div className="nutrient-strip" aria-label="今日營養素摘要"><div><span>蛋白質</span><strong>{rounded(log.proteinG)}g</strong></div><div><span>碳水</span><strong>{rounded(log.carbsG)}g</strong></div><div><span>脂肪</span><strong>{rounded(log.fatG)}g</strong></div><div><span>纖維</span><strong>{rounded(log.fiberG)}g</strong></div></div>
-      <div className="mini-grid"><article className="stat"><span>前一晚睡眠</span><strong>{log.sleepHours ?? '—'} 小時</strong></article><article className="stat"><span>下肢緊繃／疼痛</span><strong>{log.lowerLegTightness ?? '—'}／5</strong></article><article className="stat"><span>運動明細</span><strong>{log.workouts?.length ?? 0} 筆</strong></article></div>
-      <div className="advice-list">{advice.map((item, index) => <article className={`advice ${item.level}`} key={`${item.text}-${index}`}><i /><p>{item.text}</p></article>)}</div>
+      <div className="advice-list secondary-advice">{advice.slice(0, 2).map((item, index) => <article className={`advice ${item.level}`} key={`${item.text}-${index}`}><i /><p>{item.text}</p></article>)}</div>
     </div></details>
+    {waterToast && <div className="undo-toast" role="status"><span>已加入 {waterToast.amount} ml 白開水</span><button onClick={() => { onQuickAdd({ waterMl: waterToast.previous }); setWaterToast(undefined) }}>復原</button></div>}
   </section>
 }

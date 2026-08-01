@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
+import { Check, Copy, Moon, Scale, Utensils } from 'lucide-react'
 import { dailyDeficit, effectiveActiveKcal, estimatedTDEE, mealTotals, parseLocalDate, sleepDurationHours } from '../calculations'
 import { emptyMealDetails } from '../defaults'
 import type { ChallengeSettings, CustomFood, DailyLog, MealDetails, MealLine, RecordStage, WorkoutEntry, WorkoutType } from '../types'
 import { FoodQuickActions } from '../components/FoodQuickActions'
 import { NumberField } from '../components/NumberField'
 
-const Section = ({ title, missing, open = true, children }: { title: string; missing?: boolean; open?: boolean; children: React.ReactNode }) => <details className="form-section panel" open={open}>
+const Section = ({ title, missing, open = true, children }: { title: string; missing?: boolean; open?: boolean; children: React.ReactNode }) => <details className="form-section standard-card" open={open}>
   <summary><span>{title}</span>{missing && <em>尚未完成</em>}</summary><div className="section-body">{children}</div>
 </details>
 
@@ -28,9 +29,10 @@ const blankFood = (): Omit<CustomFood, 'id'> => ({ name: '', basis: '100g', kcal
 const mealKeys = ['breakfast', 'lunch', 'dinner', 'evening'] as const
 type MealKey = typeof mealKeys[number]
 
-export function RecordPage({ date, log, foods, settings, initialStage, saveState, onDate, onChange, onSaveFood, onDeleteFood, onDone }: {
+export function RecordPage({ date, log, logs, foods, settings, initialStage, saveState, onDate, onChange, onSaveFood, onDeleteFood }: {
   date: string
   log: DailyLog
+  logs: DailyLog[]
   foods: CustomFood[]
   settings: ChallengeSettings
   initialStage: RecordStage
@@ -39,7 +41,6 @@ export function RecordPage({ date, log, foods, settings, initialStage, saveState
   onChange: (patch: Partial<DailyLog>) => void
   onSaveFood: (food: CustomFood) => void
   onDeleteFood: (id: string) => void
-  onDone: () => void
 }) {
   const [activeStage, setActiveStage] = useState<RecordStage>(initialStage)
   const [newFood, setNewFood] = useState<Omit<CustomFood, 'id'>>(blankFood)
@@ -47,10 +48,14 @@ export function RecordPage({ date, log, foods, settings, initialStage, saveState
   const [workoutDraft, setWorkoutDraft] = useState<WorkoutEntry>(blankWorkout)
   const [editingWorkoutId, setEditingWorkoutId] = useState<string>()
   const [showWorkoutForm, setShowWorkoutForm] = useState(false)
+  const [copyMessage, setCopyMessage] = useState('')
+  const [justFinalized, setJustFinalized] = useState(false)
   const sleepTimesRef = useRef({ startedAt: log.sleepStartedAt, endedAt: log.sleepEndedAt })
+  const finalizeTimer = useRef<number | undefined>(undefined)
 
   useEffect(() => setActiveStage(initialStage), [initialStage, date])
   useEffect(() => { sleepTimesRef.current = { startedAt: log.sleepStartedAt, endedAt: log.sleepEndedAt } }, [log.sleepStartedAt, log.sleepEndedAt])
+  useEffect(() => () => { if (finalizeTimer.current) window.clearTimeout(finalizeTimer.current) }, [])
 
   const details = log.mealDetails ?? emptyMealDetails()
   const workouts = log.workouts ?? []
@@ -68,6 +73,38 @@ export function RecordPage({ date, log, foods, settings, initialStage, saveState
   const updateDetails = (next: MealDetails) => {
     const totals = mealTotals(next)
     updateFood({ mealDetails: next, intakeKcal: totals.kcal, proteinG: totals.protein, carbsG: totals.carbs, fatG: totals.fat, fiberG: totals.fiber, sodiumMg: totals.sodium })
+  }
+  const cloneDetails = (source: MealDetails): MealDetails => ({
+    breakfast: source.breakfast.map((line) => ({ ...line, key: `${line.key}-${crypto.randomUUID()}` })),
+    lunch: source.lunch.map((line) => ({ ...line, key: `${line.key}-${crypto.randomUUID()}` })),
+    dinner: source.dinner.map((line) => ({ ...line, key: `${line.key}-${crypto.randomUUID()}` })),
+    evening: source.evening.map((line) => ({ ...line, key: `${line.key}-${crypto.randomUUID()}` })),
+    ramen: { ...source.ramen }
+  })
+  const dateKey = (value: Date) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
+  const showCopyMessage = (message: string) => { setCopyMessage(message); window.setTimeout(() => setCopyMessage(''), 3500) }
+  const copyYesterdayBreakfast = () => {
+    const source = logs.find((item) => item.date === dateKey(previousDate))?.mealDetails
+    if (!source) return showCopyMessage('昨天沒有可複製的早餐')
+    updateDetails({ ...details, breakfast: cloneDetails(source).breakfast })
+    showCopyMessage('已複製昨天早餐')
+  }
+  const copyYesterdayFood = () => {
+    const source = logs.find((item) => item.date === dateKey(previousDate))?.mealDetails
+    if (!source) return showCopyMessage('昨天沒有可複製的飲食')
+    updateDetails(cloneDetails(source))
+    showCopyMessage('已複製昨天整天飲食')
+  }
+  const copyRecentChickenMeal = () => {
+    const source = [...logs].filter((item) => item.date < date && item.mealDetails).sort((a, b) => b.date.localeCompare(a.date)).map((item) => {
+      const mealDetails = item.mealDetails!
+      const meal = (['lunch', 'dinner'] as const).find((key) => mealDetails[key].some((line) => line.label.includes('雞胸')))
+      return meal ? { meal, details: mealDetails } : undefined
+    }).find(Boolean)
+    if (!source) return showCopyMessage('找不到最近的雞胸餐')
+    const copied = cloneDetails(source.details)
+    updateDetails({ ...details, [source.meal]: copied[source.meal] })
+    showCopyMessage('已複製最近一次雞胸餐')
   }
   const setMeal = (key: MealKey, lines: MealLine[]) => updateDetails({ ...details, [key]: lines })
   const updateSleepTime = (key: 'sleepStartedAt' | 'sleepEndedAt', value: string) => {
@@ -97,15 +134,23 @@ export function RecordPage({ date, log, foods, settings, initialStage, saveState
   }
   const editWorkout = (workout: WorkoutEntry) => { setWorkoutDraft({ ...workout, activityKcalMode: workout.activityKcalMode ?? 'included_in_daily_total' }); setEditingWorkoutId(workout.id); setShowWorkoutForm(true) }
 
-  const stages: Array<{ id: RecordStage; label: string; sub: string; incomplete: boolean }> = [
-    { id: 'morning', label: '早上', sub: '20秒', incomplete: log.weightKg == null || log.sleepHours == null || log.bowelMovement === 'unrecorded' || log.lowerLegTightness == null },
-    { id: 'food', label: '飲食與水分', sub: '隨吃隨記', incomplete: log.intakeKcal == null || log.proteinG == null || log.waterMl == null },
-    { id: 'evening', label: '晚間結算', sub: '30秒', incomplete: eveningMissing || !log.dayFinalized }
+  const finalizeDay = () => {
+    if (eveningMissing || log.dayFinalized) return
+    onChange({ dayFinalized: true, finalizedAt: new Date().toISOString(), needsRefinalization: false })
+    setJustFinalized(true)
+    if (finalizeTimer.current) window.clearTimeout(finalizeTimer.current)
+    finalizeTimer.current = window.setTimeout(() => setJustFinalized(false), 2200)
+  }
+
+  const stages: Array<{ id: RecordStage; label: string; sub: string; incomplete: boolean; complete: boolean; Icon: typeof Scale }> = [
+    { id: 'morning', label: '早上', sub: '20 秒', incomplete: log.weightKg == null || log.sleepHours == null || log.bowelMovement === 'unrecorded' || log.lowerLegTightness == null, complete: log.weightKg != null && log.sleepHours != null && log.bowelMovement !== 'unrecorded' && log.lowerLegTightness != null, Icon: Scale },
+    { id: 'food', label: '飲食', sub: '隨吃隨記', incomplete: log.intakeKcal == null || log.proteinG == null || log.waterMl == null, complete: log.intakeKcal != null && log.proteinG != null && log.waterMl != null, Icon: Utensils },
+    { id: 'evening', label: '晚上', sub: '30 秒', incomplete: eveningMissing || !log.dayFinalized, complete: Boolean(log.dayFinalized), Icon: Moon }
   ]
 
   return <section className="page record-page sprint-record">
     <header className="page-header"><div><p className="eyebrow">每天三次 · 自動儲存</p><h1>每日紀錄</h1></div><input aria-label="紀錄日期" type="date" value={date} onChange={(event) => onDate(event.target.value)} /></header>
-    <nav className="stage-tabs" aria-label="每日三階段">{stages.map((stage) => <button type="button" key={stage.id} className={activeStage === stage.id ? 'active' : ''} onClick={() => setActiveStage(stage.id)}><span>{stage.label}{stage.incomplete && <i aria-label="尚未完成" />}</span><small>{stage.sub}</small></button>)}</nav>
+    <nav className="stage-tabs" aria-label="每日三階段">{stages.map((stage, index) => <button type="button" key={stage.id} className={`${activeStage === stage.id ? 'active' : ''} ${stage.complete ? 'complete' : ''}`} onClick={() => setActiveStage(stage.id)}><b>{stage.complete ? <Check /> : index + 1}</b><span>{stage.label}{stage.incomplete && !stage.complete && <i aria-label="尚未完成" />}</span><small>{stage.sub}</small></button>)}</nav>
 
     {activeStage === 'morning' && <div className="record-tab-panel">
       <div className="tab-intro"><strong>早上約 20 秒</strong><p>體重、前一晚睡眠、排便與下肢恢復；腰圍不需要天天量。</p></div>
@@ -119,7 +164,7 @@ export function RecordPage({ date, log, foods, settings, initialStage, saveState
         <SelectScale label="下肢緊繃／疼痛（0 無、5 很明顯）" min={0} max={5} value={log.lowerLegTightness} onChange={(lowerLegTightness) => onChange({ lowerLegTightness: lowerLegTightness as DailyLog['lowerLegTightness'] })} />
         {(log.lowerLegTightness ?? 0) >= 2 && <p className="recovery-inline">2：今天不補跑；3 以上：改走路或休息，不追活動數字。</p>}
       </Section>
-      <Section title="早上進階選填" open={false}>
+      <Section title="顯示進階欄位" open={false}>
         <SelectScale label="睡眠品質" value={log.sleepQuality} onChange={(sleepQuality) => onChange({ sleepQuality: sleepQuality as DailyLog['sleepQuality'] })} />
         <NumberField label="腰圍（每週約2次）" value={log.waistCm} unit="cm" step={0.1} onChange={(waistCm) => onChange({ waistCm })} />
         <label className="text-field">疼痛／緊繃備註<textarea rows={3} placeholder="位置、何時出現、是否影響走路…" value={log.painNotes ?? ''} onChange={(event) => onChange({ painNotes: event.target.value })} /></label>
@@ -130,13 +175,14 @@ export function RecordPage({ date, log, foods, settings, initialStage, saveState
       <div className="tab-intro"><strong>白天隨吃隨記</strong><p>主要只看總熱量、蛋白質與白開水；其餘營養素放在進階區。</p></div>
       <div className="food-core-summary panel"><div><span>已吃</span><strong>{Math.round(log.intakeKcal ?? 0)}<small> kcal</small></strong></div><div><span>蛋白質</span><strong>{Math.round(log.proteinG ?? 0)}<small> g</small></strong></div><div><span>白開水</span><strong>{Math.round(log.waterMl ?? 0)}<small> ml</small></strong></div></div>
       <Section title="食物快捷模板"><p className="fine-print estimate-note">皆為可編輯估算值；品牌與烹調差異請依包裝修正。</p><FoodQuickActions log={log} templates={templates} onChange={onChange} /></Section>
+      <section className="copy-food flat-section"><div className="flat-heading"><h2>快速沿用</h2><span>重複餐點不用重打</span></div><div className="copy-actions"><button onClick={copyYesterdayBreakfast}><Copy />複製昨天早餐</button><button onClick={copyYesterdayFood}><Copy />複製昨天整天飲食</button><button onClick={copyRecentChickenMeal}><Copy />複製最近雞胸餐</button></div></section>
       <Section title="今日主要數字" missing={stages[1].incomplete}>
         <NumberField label="今日已攝取" value={log.intakeKcal} unit="kcal" quick={[100, 250]} onChange={(intakeKcal) => updateFood({ intakeKcal })} />
         <NumberField label="蛋白質" value={log.proteinG} unit="g" quick={[10, 20]} onChange={(proteinG) => updateFood({ proteinG })} />
         <NumberField label="白開水" value={log.waterMl} unit="ml" step={250} quick={[250, 500]} onChange={(waterMl) => onChange({ waterMl })} />
       </Section>
       <Section title="今日餐點" open={false}><MealEditor title="早餐" lines={details.breakfast} onChange={(lines) => setMeal('breakfast', lines)} /><MealEditor title="午餐" lines={details.lunch} onChange={(lines) => setMeal('lunch', lines)} /><MealEditor title="晚餐" lines={details.dinner} onChange={(lines) => setMeal('dinner', lines)} /><MealEditor title="點心／晚間" lines={details.evening} onChange={(lines) => setMeal('evening', lines)} /></Section>
-      <Section title="進階營養" open={false}>
+      <Section title="顯示進階欄位" open={false}>
         <div className="compact-field-grid nutrition-fields"><NumberField label="碳水" value={log.carbsG} unit="g" onChange={(carbsG) => updateFood({ carbsG })} /><NumberField label="脂肪" value={log.fatG} unit="g" onChange={(fatG) => updateFood({ fatG })} /><NumberField label="纖維" value={log.fiberG} unit="g" onChange={(fiberG) => updateFood({ fiberG })} /><NumberField label="鈉" value={log.sodiumMg} unit="mg" step={10} onChange={(sodiumMg) => updateFood({ sodiumMg })} /></div>
         <details className="ramen panel-inner"><summary>泡麵雞胸版詳細比例</summary><label className="toggle-row"><span>今天有吃泡麵</span><input type="checkbox" checked={details.ramen.enabled} onChange={(event) => updateDetails({ ...details, ramen: { ...details.ramen, enabled: event.target.checked } })} /></label>{details.ramen.enabled && <><div className="compact-field-grid nutrition-fields"><NumberField label="包裝整份熱量" value={details.ramen.packageKcal} unit="kcal" onChange={(packageKcal) => updateDetails({ ...details, ramen: { ...details.ramen, packageKcal: packageKcal ?? 0 } })} /><NumberField label="包裝蛋白質" value={details.ramen.packageProteinG} unit="g" onChange={(packageProteinG) => updateDetails({ ...details, ramen: { ...details.ramen, packageProteinG } })} /><NumberField label="包裝碳水" value={details.ramen.packageCarbsG} unit="g" onChange={(packageCarbsG) => updateDetails({ ...details, ramen: { ...details.ramen, packageCarbsG } })} /><NumberField label="包裝脂肪" value={details.ramen.packageFatG} unit="g" onChange={(packageFatG) => updateDetails({ ...details, ramen: { ...details.ramen, packageFatG } })} /><NumberField label="包裝鈉" value={details.ramen.packageSodiumMg} unit="mg" onChange={(packageSodiumMg) => updateDetails({ ...details, ramen: { ...details.ramen, packageSodiumMg } })} /></div>{(['noodleRatio', 'seasoningRatio', 'oilRatio'] as const).map((key) => <label className="select-field" key={key}>{key === 'noodleRatio' ? '麵體比例' : key === 'seasoningRatio' ? '調味包比例' : '油包比例'}<select value={details.ramen[key]} onChange={(event) => updateDetails({ ...details, ramen: { ...details.ramen, [key]: Number(event.target.value) } })}><option value={0.5}>1/2</option><option value={2 / 3}>2/3</option><option value={1}>整份</option></select></label>)}<label className="toggle-row"><span>有喝湯</span><input type="checkbox" checked={details.ramen.drankSoup} onChange={(event) => updateDetails({ ...details, ramen: { ...details.ramen, drankSoup: event.target.checked } })} /></label><NumberField label="加雞胸肉" value={details.ramen.chickenG} unit="g" step={10} onChange={(chickenG) => updateDetails({ ...details, ramen: { ...details.ramen, chickenG: chickenG ?? 0 } })} /><NumberField label="加蔬菜" value={details.ramen.vegetablesG} unit="g" step={10} onChange={(vegetablesG) => updateDetails({ ...details, ramen: { ...details.ramen, vegetablesG: vegetablesG ?? 0 } })} /></>}</details>
         <label className="toggle-row"><span>已補充肌酸</span><input type="checkbox" checked={Boolean(log.creatineTaken)} onChange={(event) => onChange({ creatineTaken: event.target.checked })} /></label>
@@ -162,8 +208,8 @@ export function RecordPage({ date, log, foods, settings, initialStage, saveState
         <SelectScale label="疲勞程度" value={log.fatigueLevel} onChange={(fatigueLevel) => onChange({ fatigueLevel: fatigueLevel as DailyLog['fatigueLevel'] })} />
         <div className="field-block"><label>今天有高鹽餐嗎？</label><div className="segmented"><button type="button" className={log.highSaltMeal === true ? 'selected' : ''} onClick={() => onChange({ highSaltMeal: true })}>有</button><button type="button" className={log.highSaltMeal === false ? 'selected' : ''} onClick={() => onChange({ highSaltMeal: false })}>沒有</button></div></div>
       </Section>
-      <Section title="活動進階紀錄" open={false}>
-        <div className="compact-field-grid"><NumberField label="距離" value={log.distanceKm} unit="km" step={0.1} onChange={(distanceKm) => updateActivity({ distanceKm })} /><NumberField label="站立時數" value={log.standingHours} unit="小時" onChange={(standingHours) => updateActivity({ standingHours })} /><NumberField label="平均運動心率" value={log.averageExerciseHeartRate} unit="bpm" onChange={(averageExerciseHeartRate) => updateActivity({ averageExerciseHeartRate })} /><NumberField label="靜息心率" value={log.restingHeartRate} unit="bpm" onChange={(restingHeartRate) => onChange({ restingHeartRate })} /><NumberField label="HRV" value={log.heartRateVariabilityMs} unit="ms" onChange={(heartRateVariabilityMs) => onChange({ heartRateVariabilityMs })} /></div>
+      <Section title="顯示進階欄位" open={false}>
+        <div className="compact-field-grid"><NumberField label="超慢跑時間" value={log.slowJogMinutes} unit="分鐘" step={1} onChange={(slowJogMinutes) => updateActivity({ slowJogMinutes })} /><NumberField label="超慢跑活動能量" value={log.slowJogActiveKcal} unit="kcal" onChange={(slowJogActiveKcal) => updateActivity({ slowJogActiveKcal })} /><NumberField label="距離" value={log.distanceKm} unit="km" step={0.1} onChange={(distanceKm) => updateActivity({ distanceKm })} /><NumberField label="站立時數" value={log.standingHours} unit="小時" onChange={(standingHours) => updateActivity({ standingHours })} /><NumberField label="平均運動心率" value={log.averageExerciseHeartRate} unit="bpm" onChange={(averageExerciseHeartRate) => updateActivity({ averageExerciseHeartRate })} /><NumberField label="靜息心率" value={log.restingHeartRate} unit="bpm" onChange={(restingHeartRate) => onChange({ restingHeartRate })} /><NumberField label="HRV" value={log.heartRateVariabilityMs} unit="ms" onChange={(heartRateVariabilityMs) => onChange({ heartRateVariabilityMs })} /></div>
         <div className="workout-list">{workouts.length === 0 ? <p className="empty">個別運動明細為選填。</p> : workouts.map((workout) => <article key={workout.id} className="workout-card"><div><span>{workoutLabels[workout.type]}</span><strong>{workout.title}</strong><small>{workout.durationMinutes} 分{workout.distanceKm != null ? ` · ${workout.distanceKm}km` : ''}</small></div><div><button type="button" onClick={() => editWorkout(workout)}>編輯</button><button type="button" className="danger-text" onClick={() => updateActivity({ workouts: workouts.filter((item) => item.id !== workout.id) })}>刪除</button></div></article>)}</div>
         {!showWorkoutForm && <button type="button" className="add-detail-button" onClick={() => setShowWorkoutForm(true)}>＋ 新增選填運動明細</button>}
         {showWorkoutForm && <div className="workout-form panel-inner"><div className="form-title"><strong>{editingWorkoutId ? '編輯運動' : '新增運動'}</strong><span>普通紀錄只需類型與時長</span></div><label className="select-field">類型<select value={workoutDraft.type} onChange={(event) => { const type = event.target.value as WorkoutType; setWorkoutDraft({ ...workoutDraft, type, title: workoutLabels[type] }) }}>{Object.entries(workoutLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><NumberField label="時長" value={workoutDraft.durationMinutes} unit="分" onChange={(durationMinutes) => setWorkoutDraft({ ...workoutDraft, durationMinutes: durationMinutes ?? 0 })} />
@@ -172,9 +218,11 @@ export function RecordPage({ date, log, foods, settings, initialStage, saveState
           {workoutDraft.activityKcalMode === 'add_to_daily_total' && workoutDraft.activeKcal == null && <p className="field-error">額外加入前必須填活動能量。</p>}<div className="form-actions"><button type="button" className="primary" disabled={workoutDraft.durationMinutes <= 0 || (workoutDraft.activityKcalMode === 'add_to_daily_total' && workoutDraft.activeKcal == null)} onClick={saveWorkout}>{editingWorkoutId ? '儲存修改' : '加入運動'}</button><button type="button" onClick={() => { setWorkoutDraft(blankWorkout()); setEditingWorkoutId(undefined); setShowWorkoutForm(false) }}>取消</button></div></div>}
       </Section>
       <Section title="今日備註" open={false}><textarea aria-label="今日備註" rows={4} value={log.notes ?? ''} onChange={(event) => onChange({ notes: event.target.value })} /></Section>
-      <div className={`finalize-card panel ${log.dayFinalized ? 'done' : ''}`}><div><span>{log.dayFinalized ? '今日已結算' : '今日尚未結算'}</span><strong>{log.dayFinalized ? `最終推估赤字 ${Math.round(finalDeficit ?? 0)} kcal` : '確認資料後完成今天'}</strong><p>{log.dayFinalized ? `推估總消耗 ${Math.round(finalTdee ?? 0)} kcal；Watch 與熱量皆為估算。` : eveningMissing ? '仍有晚間必填項目尚未完成。' : '完成後才會計算今日最終推估赤字。'}</p></div><button type="button" className="primary" disabled={eveningMissing || log.dayFinalized} onClick={() => onChange({ dayFinalized: true, finalizedAt: new Date().toISOString(), needsRefinalization: false })}>{log.dayFinalized ? '結算完成' : '完成今日結算'}</button></div>
+      <div className={`finalize-card standard-card ${log.dayFinalized ? 'done' : ''}`}><div><span>{log.dayFinalized ? '今日已結算' : '今日尚未結算'}</span><strong>{log.dayFinalized ? `最終推估赤字 ${Math.round(finalDeficit ?? 0)} kcal` : '確認資料後完成今天'}</strong><p>{log.dayFinalized ? `推估總消耗 ${Math.round(finalTdee ?? 0)} kcal；Watch 與熱量皆為估算。` : eveningMissing ? '完成缺少的晚間資料後，下方會出現結算按鈕。' : '資料齊全，可以在下方完成結算。'}</p></div></div>
     </div>}
 
-    <div className={`record-save-bar ${saveState}`} role="status" aria-live="polite"><div><i /><span><strong>{saveState === 'saving' ? '儲存中…' : saveState === 'error' ? '儲存失敗' : '已自動儲存'}</strong><small>{saveState === 'error' ? '請重試修改一次' : '每次修改都已保存'}</small></span></div><button type="button" className="primary" disabled={saveState !== 'saved'} onClick={onDone}>完成這一段，回首頁</button></div>
+    <div className={`record-save-bar ${saveState}`} role="status" aria-live="polite"><div><i /><span><strong>{saveState === 'saving' ? '儲存中…' : saveState === 'error' ? '儲存失敗' : '已自動儲存'}</strong></span></div>{activeStage === 'evening' && !log.dayFinalized && <button type="button" className="primary" disabled={saveState !== 'saved' || eveningMissing} onClick={finalizeDay}>{eveningMissing ? '尚缺資料' : '完成今日結算'}</button>}</div>
+    {copyMessage && <div className="copy-toast" role="status">{copyMessage}</div>}
+    {justFinalized && <div className="finalize-success" role="status"><Check /><strong>今日結算完成</strong><span>攝取 {Math.round(log.intakeKcal ?? 0)} · 消耗 {Math.round(estimatedTDEE(log) ?? 0)} · 赤字 {Math.round(dailyDeficit(log) ?? 0)} kcal</span></div>}
   </section>
 }

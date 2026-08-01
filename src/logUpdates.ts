@@ -2,7 +2,7 @@ import type { DailyLog } from './types'
 
 const finalizationSensitiveFields = new Set<keyof DailyLog>([
   'activeKcal', 'restingKcal', 'exerciseMinutes', 'steps', 'distanceKm', 'standingHours',
-  'averageExerciseHeartRate', 'workouts', 'activityUpdatedAt', 'intakeKcal', 'proteinG',
+  'averageExerciseHeartRate', 'slowJogMinutes', 'slowJogActiveKcal', 'workouts', 'activityUpdatedAt', 'intakeKcal', 'proteinG',
   'carbsG', 'fatG', 'fiberG', 'sodiumMg', 'mealDetails', 'mealMode', 'foodUpdatedAt',
   'waterMl', 'highSaltMeal', 'dinnerFinishedAt', 'hungerLevel', 'fatigueLevel', 'lowerLegTightness', 'painNotes'
 ])

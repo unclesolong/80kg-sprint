@@ -40,7 +40,7 @@ Apple Watch活動能量：${show(log.activeKcal, ' kcal')}
 超慢跑分鐘：${show(log.slowJogMinutes, ' 分')}
 平均運動心率：${show(log.averageExerciseHeartRate, ' bpm')}
 白開水：${show(log.waterMl, ' ml')}
-睡眠：${show(log.sleepHours, ' 小時')}
+前一晚睡眠：${show(log.sleepHours, ' 小時')}
 排便：${log.bowelMovement === 'yes' ? '有' : '無'}
 Bristol型態：${show(log.bristolType)}
 高鹽餐：${log.highSaltMeal ? '是' : '否'}

@@ -42,7 +42,7 @@ export function TrendsPage({ logs, settings }: { logs: DailyLog[]; settings: Cha
       <ChartCard title="活動" note="活動能量、運動分鐘與步數">
         <ResponsiveContainer width="100%" height="100%"><BarChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" /><XAxis dataKey="date" tick={{ fill: 'var(--muted)', fontSize: 11 }} /><YAxis tick={{ fill: 'var(--muted)', fontSize: 11 }} /><Tooltip contentStyle={tipStyle} /><Legend /><Bar name="活動 kcal" dataKey="active" fill="#65d38e" radius={[4, 4, 0, 0]} /><Bar name="運動分" dataKey="exercise" fill="#6db7ff" radius={[4, 4, 0, 0]} /><Line name="步數" dataKey="steps" stroke="#d594f5" /></BarChart></ResponsiveContainer>
       </ChartCard>
-      <ChartCard title="恢復與感受" note="睡眠、疲勞與飢餓（1–5）">
+      <ChartCard title="恢復與感受" note="前一晚睡眠、疲勞與飢餓（1–5）">
         <ResponsiveContainer width="100%" height="100%"><AreaChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" /><XAxis dataKey="date" tick={{ fill: 'var(--muted)', fontSize: 11 }} /><YAxis tick={{ fill: 'var(--muted)', fontSize: 11 }} /><Tooltip contentStyle={tipStyle} /><Legend /><Area name="睡眠小時" dataKey="sleep" stroke="#6db7ff" fill="#6db7ff33" /><Line name="疲勞" dataKey="fatigue" stroke="#ef6d74" /><Line name="飢餓" dataKey="hunger" stroke="#f0bf63" /></AreaChart></ResponsiveContainer>
       </ChartCard>
     </div>}

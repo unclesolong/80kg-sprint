@@ -100,6 +100,16 @@ h3 { margin-bottom: 6px; }
 .advice p { margin: 0; font-size: .83rem; line-height: 1.55; }
 .quick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; margin-top: 20px; }
 .quick-actions .primary { grid-column: 1 / -1; }
+.completion-card { margin-top: 12px; padding: 17px; border-color: color-mix(in srgb, var(--yellow), transparent 55%); }
+.completion-card.complete { border-color: color-mix(in srgb, var(--green), transparent 55%); background: var(--green-deep); }
+.completion-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.completion-heading > div { min-width: 0; }
+.completion-heading span { display: block; color: var(--yellow); font-size: .72rem; font-weight: 700; margin-bottom: 4px; }
+.completion-card.complete .completion-heading span { color: var(--green); }
+.completion-heading strong { display: block; font-size: 1rem; }
+.completion-heading button { flex: 0 0 auto; border: 1px solid var(--line); border-radius: 12px; background: var(--card-2); padding: 8px 12px; color: var(--green); font-size: .76rem; font-weight: 700; }
+.completion-card ul { display: flex; flex-wrap: wrap; gap: 7px; list-style: none; padding: 13px 0 0; margin: 13px 0 0; border-top: 1px solid var(--line); }
+.completion-card li { min-height: 34px; display: flex; align-items: center; border-radius: 999px; padding: 6px 11px; background: color-mix(in srgb, var(--yellow), transparent 88%); color: var(--text); font-size: .72rem; }
 
 .bottom-nav { position: fixed; z-index: 20; bottom: 0; left: 0; right: 0; display: grid; grid-template-columns: repeat(4, 1fr); padding: 8px max(10px, env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); background: color-mix(in srgb, var(--bg), transparent 8%); backdrop-filter: blur(22px); border-top: 1px solid var(--line); }
 .bottom-nav button { background: transparent; color: var(--muted); border: 0; font-size: .68rem; font-weight: 600; display: grid; place-items: center; gap: 2px; min-height: 52px; }
@@ -107,6 +117,16 @@ h3 { margin-bottom: 6px; }
 .bottom-nav button.active { color: var(--green); }
 
 .autosave-note { color: var(--muted); font-size: .78rem; margin: -14px 2px 16px; }
+.record-tabs { position: sticky; z-index: 10; top: calc(6px + env(safe-area-inset-top)); display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 5px; margin: 0 -2px 14px; border: 1px solid var(--line); border-radius: 16px; background: color-mix(in srgb, var(--bg), transparent 4%); backdrop-filter: blur(18px); }
+.record-tabs::-webkit-scrollbar { display: none; }
+.record-tabs button { position: relative; flex: 1 0 auto; min-width: 64px; border: 0; border-radius: 11px; background: transparent; color: var(--muted); font-size: .76rem; font-weight: 700; padding: 8px 14px; }
+.record-tabs button.active { color: var(--text); background: var(--card-2); box-shadow: 0 3px 12px rgba(0, 0, 0, .12); }
+.record-tabs button i { position: absolute; top: 7px; right: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--yellow); }
+.record-tab-panel { animation: page-in .18s ease-out; }
+.tab-intro, .sleep-context { border-radius: 16px; padding: 13px 15px; margin-bottom: 10px; background: var(--green-deep); }
+.tab-intro strong, .sleep-context strong { color: var(--green); font-size: .82rem; }
+.tab-intro p, .sleep-context p { color: var(--muted); font-size: .7rem; line-height: 1.5; margin: 4px 0 0; }
+.sleep-context { margin: 8px 0 2px; background: var(--card-2); }
 input, select, textarea { background: var(--card-2); border: 1px solid var(--line); border-radius: 12px; min-height: 44px; padding: 10px 12px; width: 100%; }
 textarea { resize: vertical; line-height: 1.5; }
 .form-section { margin-bottom: 12px; overflow: hidden; }

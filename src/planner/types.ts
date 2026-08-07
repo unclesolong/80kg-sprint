@@ -169,12 +169,38 @@ export interface PlannerConsent {
   withdrawnAt?: string
 }
 
+export interface AIRun {
+  id: string
+  kind: 'plan' | 'weekly_review' | 'food_parse'
+  status: 'success' | 'fallback' | 'error'
+  schemaVersion: 1
+  requestId?: string
+  model?: string
+  resultSummary?: string
+  errorCode?: string
+  createdAt: string
+}
+
 export interface FoodMetadata {
   id: string
   mealLineKey?: string
   source: 'local' | 'bls' | 'usda' | 'open_food_facts' | 'manual' | 'ai_estimate'
   sourceId: string
   fetchedAt: string
+  confirmedAt?: string
+  name?: string
+  brand?: string
+  barcode?: string
+  preparation?: string
+  weightState?: 'raw' | 'cooked' | 'unknown'
+  basis?: '100g' | '100ml' | 'serving'
+  kcal?: number
+  proteinG?: number
+  carbsG?: number
+  fatG?: number
+  fiberG?: number
+  sodiumMg?: number
+  completeness?: 'complete' | 'partial' | 'calorie_protein_only' | 'estimated'
 }
 
 export interface PlannerSnapshot {

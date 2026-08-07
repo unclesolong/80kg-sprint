@@ -12,7 +12,15 @@ const log = (day: number, patch: Partial<DailyLog> = {}): DailyLog => ({
 describe('weekly aggregation', () => {
   it('does not recommend calorie changes when data is incomplete', () => {
     const result = aggregateWeek([log(1), log(2)], '2026-08-01', '2026-08-07')
+    expect(result.dataCompleteness).toBeLessThan(30)
     expect(buildLocalWeeklyComment(result.summary, result.dataCompleteness).decision).toBe('improve_data_first')
+  })
+
+  it('uses the full seven-day denominator and a regression slope for weight trend', () => {
+    const logs = [log(1, { weightKg: 80 }), log(3, { weightKg: 79.8 }), log(7, { weightKg: 79.4 })]
+    const result = aggregateWeek(logs, '2026-08-01', '2026-08-07')
+    expect(result.dataCompleteness).toBeLessThan(50)
+    expect(result.summary.weightTrendKg).toBeCloseTo(-0.7, 1)
   })
 
   it('prioritizes recovery when pain is high', () => {

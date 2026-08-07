@@ -43,7 +43,7 @@ export interface DraftFoodEntry {
   draftId: string
   meal: MealKey
   line: MealLine
-  source: 'common' | 'template' | 'mine' | 'manual'
+  source: 'common' | 'template' | 'mine' | 'manual' | 'provider'
 }
 
 /** Adds a whole draft in one immutable clone without touching existing rows. */
@@ -73,6 +73,18 @@ export const commitDraftEntries = async (
 ): Promise<MealDetails> => {
   const next = addMealLines(details, entries)
   await onApply(next)
+  return next
+}
+
+/** Persists the legacy meal first; follow-up Planner metadata is deliberately best-effort. */
+export const commitDraftEntriesWithMetadata = async (
+  details: MealDetails,
+  entries: DraftFoodEntry[],
+  onApply: (next: MealDetails) => void | Promise<void>,
+  metadataWrites: Array<() => Promise<unknown>>
+): Promise<MealDetails> => {
+  const next = await commitDraftEntries(details, entries, onApply)
+  await Promise.allSettled(metadataWrites.map((write) => write()))
   return next
 }
 

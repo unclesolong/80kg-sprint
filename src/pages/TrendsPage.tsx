@@ -33,6 +33,7 @@ const chartLabels: Record<string, string> = {
   intake: '攝取', tdee: '總消耗', deficit: '赤字', active: '活動能量', exercise: '運動分鐘', steps: '步數',
   sleep: '睡眠', fatigue: '疲勞', hunger: '飢餓', leg: '下肢／足底'
 }
+const emptyTrendsArt = `${import.meta.env.BASE_URL}art/empty-trends.webp`
 
 const ChartCard = ({ title, note, children, footer }: { title: string; note: string; children: React.ReactNode; footer?: React.ReactNode }) => <article className="standard-card chart-card"><div><h3>{title}</h3><p>{note}</p></div><div className="chart-wrap">{children}</div>{footer}</article>
 const Summary = ({ label, value, note, Icon }: { label: string; value: string; note?: string; Icon: typeof Scale }) => <article className="standard-card summary-card"><Icon aria-hidden="true" /><span>{label}</span><strong>{value}</strong>{note && <small>{note}</small>}</article>
@@ -75,6 +76,7 @@ export function TrendsPage({ logs, settings }: { logs: DailyLog[]; settings: Cha
     }
   })
   const latestWeightDate = data.filter((item) => item.morning != null).at(-1)?.fullDate ?? ''
+  const hasWeightMeasurements = data.some((item) => item.morning != null || item.other != null)
   const [selectedDate, setSelectedDate] = useState(latestWeightDate)
   useEffect(() => {
     if (!selectedDate || !data.some((item) => item.fullDate === selectedDate && item.morning != null)) setSelectedDate(latestWeightDate)
@@ -115,16 +117,18 @@ export function TrendsPage({ logs, settings }: { logs: DailyLog[]; settings: Cha
       <Summary Icon={Footprints} label="平均活動" value={simple('active', average(ordered.map(effectiveActiveKcal)))} />
     </div>
 
-    {data.length === 0 ? <div className="empty-state panel"><strong>還沒有趨勢資料</strong><p>先完成晨間紀錄，這裡會開始畫出方向。</p></div> : <ChartCard title="晨間體重與目標區間" note="點擊或滑動某一天，下方會固定顯示格式化資訊。" footer={inspector}>
+    {!hasWeightMeasurements ? <div className="empty-state trend-empty-state panel"><div className="trend-empty-art" aria-hidden="true"><img src={emptyTrendsArt} alt="" loading="lazy" decoding="async" /></div><strong>還沒有體重趨勢資料</strong><p>先完成一筆晨間體重紀錄；累積 3 筆後，我們會開始判讀趨勢。</p></div> : <ChartCard title="晨間體重與目標區間" note="點擊或滑動某一天，下方會固定顯示格式化資訊。" footer={inspector}>
       <ResponsiveContainer width="100%" height="100%"><ComposedChart data={data} onClick={selectChartPoint} onMouseMove={selectChartPoint}><CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" /><XAxis dataKey="date" tick={{ fill: 'var(--muted)', fontSize: 11 }} /><YAxis domain={['dataMin - 0.5', 'dataMax + 0.5']} tickFormatter={(value: number) => value.toFixed(1)} tick={{ fill: 'var(--muted)', fontSize: 11 }} /><Tooltip content={tooltip(['morning', 'ma3', 'targetRange'], 'weight-desktop-tooltip')} wrapperStyle={{ maxWidth: 220, outline: 'none' }} /><Legend /><Area name="目標區間" dataKey="targetRange" stroke="none" fill="#65d38e22" /><Line name="目標曲線" dataKey="target" stroke="#65d38e" strokeDasharray="5 4" dot={false} /><Line name="晨間體重" dataKey="morning" stroke="var(--text)" strokeWidth={2} connectNulls /><Line name="3 日趨勢" dataKey="ma3" stroke="#f0bf63" strokeWidth={3} connectNulls dot={false} /></ComposedChart></ResponsiveContainer>
     </ChartCard>}
 
-    <details className="advanced-trends standard-card"><summary>查看進階趨勢</summary><div className="details-body chart-stack">
+    {data.length > 0 && <details className="chart-data-table standard-card"><summary>以資料表查看趨勢</summary><div className="chart-data-scroll" role="region" aria-label="趨勢圖資料表，可水平捲動" tabIndex={0}><table><caption>已紀錄日期的趨勢摘要</caption><thead><tr><th scope="col">日期</th><th scope="col">晨間體重</th><th scope="col">3 日趨勢</th><th scope="col">目標區間</th><th scope="col">攝取</th><th scope="col">活動</th></tr></thead><tbody>{data.map((item) => <tr key={item.fullDate}><th scope="row">{formatChartDate(item.fullDate)}</th><td>{simple('morning', item.morning)}</td><td>{simple('ma3', item.ma3)}</td><td>{simple('targetRange', item.targetRange)}</td><td>{simple('intake', item.intake)}</td><td>{simple('active', item.active)}</td></tr>)}</tbody></table></div></details>}
+
+    {data.length > 0 && <details className="advanced-trends standard-card"><summary>查看進階趨勢</summary><div className="details-body chart-stack">
       <div className="advanced-summary"><p>累積最終赤字 <strong>{simple('deficit', cumulative)}</strong></p><p>最終日線性估算 <strong>{predictionText}</strong></p><p>預測信心 <strong>{prediction.confidence === 'insufficient' ? '資料不足' : prediction.confidence === 'low' ? '低' : '趨勢估算'}</strong></p><small>{predictionNote}</small></div>
       <ChartCard title="體重細節" note={`其他時間量測為虛線；${shouldShowSevenDayAverage(morning.length) ? '已顯示 7 日平均' : '滿 7 筆才顯示 7 日平均'}。`}><ResponsiveContainer width="100%" height="100%"><ComposedChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" /><XAxis dataKey="date" tick={{ fill: 'var(--muted)', fontSize: 11 }} /><YAxis domain={['dataMin - 0.5', 'dataMax + 0.5']} tickFormatter={(value: number) => value.toFixed(1)} tick={{ fill: 'var(--muted)', fontSize: 11 }} /><Tooltip content={tooltip(['morning', 'other', 'ma7'])} wrapperStyle={{ maxWidth: 220, outline: 'none' }} /><Legend /><Line name="晨間" dataKey="morning" stroke="var(--text)" connectNulls /><Line name="其他時間" dataKey="other" stroke="#9ba59e" strokeDasharray="2 4" /><Line name="7 日平均" dataKey="ma7" stroke="#6db7ff" strokeWidth={2} connectNulls dot={false} /></ComposedChart></ResponsiveContainer></ChartCard>
       <ChartCard title="已結算能量" note="未按日結的日期不顯示消耗或赤字。"><ResponsiveContainer width="100%" height="100%"><ComposedChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" /><XAxis dataKey="date" tick={{ fill: 'var(--muted)', fontSize: 11 }} /><YAxis tick={{ fill: 'var(--muted)', fontSize: 11 }} /><Tooltip content={tooltip(['intake', 'tdee', 'deficit'])} wrapperStyle={{ maxWidth: 220, outline: 'none' }} /><Legend /><Bar name="攝取" dataKey="intake" fill="#f0bf63" /><Line name="總消耗" dataKey="tdee" stroke="#6db7ff" /><Line name="最終赤字" dataKey="deficit" stroke="#65d38e" /></ComposedChart></ResponsiveContainer></ChartCard>
       <ChartCard title="活動與運動分鐘" note="活動熱量與分鐘使用相同日期，但不互相加總。"><ResponsiveContainer width="100%" height="100%"><BarChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" /><XAxis dataKey="date" tick={{ fill: 'var(--muted)', fontSize: 11 }} /><YAxis yAxisId="kcal" tick={{ fill: 'var(--muted)', fontSize: 11 }} /><YAxis yAxisId="minutes" orientation="right" tick={{ fill: 'var(--muted)', fontSize: 11 }} /><Tooltip content={tooltip(['active', 'exercise'])} wrapperStyle={{ maxWidth: 220, outline: 'none' }} /><Legend /><Bar yAxisId="kcal" name="活動 kcal" dataKey="active" fill="#65d38e" /><Line yAxisId="minutes" name="運動分" dataKey="exercise" stroke="#6db7ff" /></BarChart></ResponsiveContainer></ChartCard>
       <ChartCard title="恢復訊號" note="前一晚睡眠、疲勞、飢餓與下肢／足底狀態。"><ResponsiveContainer width="100%" height="100%"><ComposedChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" /><XAxis dataKey="date" tick={{ fill: 'var(--muted)', fontSize: 11 }} /><YAxis tick={{ fill: 'var(--muted)', fontSize: 11 }} /><Tooltip content={tooltip(['sleep', 'fatigue', 'hunger', 'leg'])} wrapperStyle={{ maxWidth: 220, outline: 'none' }} /><Legend /><Line name="睡眠小時" dataKey="sleep" stroke="#6db7ff" /><Line name="疲勞" dataKey="fatigue" stroke="#ef6d74" /><Line name="飢餓" dataKey="hunger" stroke="#f0bf63" /><Line name="下肢／足底" dataKey="leg" stroke="#d594f5" /></ComposedChart></ResponsiveContainer></ChartCard>
-    </div></details>
+    </div></details>}
   </section>
 }

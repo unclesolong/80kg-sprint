@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Check, Copy, Moon, Plus, Scale, Utensils } from 'lucide-react'
 import { dailyDeficit, effectiveActiveKcal, estimatedTDEE, nutritionCoverageDisplay, parseLocalDate, sleepDurationHours } from '../calculations'
 import type { ChallengeSettings, CustomFood, DailyLog, MealDetails, RecordStage, WorkoutEntry, WorkoutType } from '../types'
-import type { PlanVersion } from '../planner/types'
+import type { FoodMetadata, PlanVersion } from '../planner/types'
 import { duplicateMealLine, ensureMealDetails, mealKeys, mealLabels, moveMealLine, nutritionPatch, removeMealLine, restoreMealLine, updateMealLineAmount, type MealKey, type RemovedMealLine } from '../mealOperations'
 import { FoodAddSheet } from '../components/FoodAddSheet'
 import { MealCard } from '../components/MealCard'
@@ -18,13 +18,16 @@ const workoutLabels: Record<WorkoutType, string> = { walk: '步行', slow_jog: '
 const blankWorkout = (): WorkoutEntry => ({ id: crypto.randomUUID(), type: 'walk', title: '步行', durationMinutes: 0, source: 'apple_watch', activityKcalMode: 'included_in_daily_total' })
 const blankFood = (): Omit<CustomFood, 'id'> => ({ name: '', basis: '100g', kcal: 0, proteinG: 0, defaultAmount: 100 })
 const optionalFoodNutrients = new Set<keyof Omit<CustomFood, 'id'>>(['carbsG', 'fatG', 'fiberG', 'sodiumMg'])
-export function RecordPage({ date, log, logs, foods, settings, planVersion, initialStage, initialFoodIntent, saveState, onDate, onChange, onSaveFood, onDeleteFood, onFoodIntentConsumed }: {
+export function RecordPage({ date, log, logs, foods, settings, planVersion, online, aiEnabled, foodMetadata, initialStage, initialFoodIntent, saveState, onDate, onChange, onSaveFood, onDeleteFood, onEnableAI, onAIRun, onCommitMetadata, onFoodIntentConsumed }: {
   date: string
   log: DailyLog
   logs: DailyLog[]
   foods: CustomFood[]
   settings: ChallengeSettings
   planVersion?: PlanVersion
+  online: boolean
+  aiEnabled: boolean
+  foodMetadata: FoodMetadata[]
   initialStage: RecordStage
   initialFoodIntent?: { meal: MealKey; templateId?: string }
   saveState: 'saved' | 'saving' | 'error'
@@ -32,6 +35,9 @@ export function RecordPage({ date, log, logs, foods, settings, planVersion, init
   onChange: (patch: Partial<DailyLog>) => Promise<boolean>
   onSaveFood: (food: CustomFood) => void
   onDeleteFood: (id: string) => void
+  onEnableAI: () => Promise<void>
+  onAIRun: (status: 'success' | 'fallback' | 'error', errorCode?: string) => void
+  onCommitMetadata: (metadata: FoodMetadata) => Promise<void>
   onFoodIntentConsumed: () => void
 }) {
   const [activeStage, setActiveStage] = useState<RecordStage>(initialStage)
@@ -41,7 +47,7 @@ export function RecordPage({ date, log, logs, foods, settings, planVersion, init
   const [editingWorkoutId, setEditingWorkoutId] = useState<string>()
   const [showWorkoutForm, setShowWorkoutForm] = useState(false)
   const [copyMessage, setCopyMessage] = useState('')
-  const [foodSheet, setFoodSheet] = useState<{ meal: MealKey; tab?: 'common' | 'templates' | 'mine' | 'manual'; templateId?: string; foodId?: string }>()
+  const [foodSheet, setFoodSheet] = useState<{ meal: MealKey; tab?: 'common' | 'templates' | 'mine' | 'ai' | 'manual'; templateId?: string; foodId?: string }>()
   const [expandedMeal, setExpandedMeal] = useState<MealKey>()
   const [deletedMealLine, setDeletedMealLine] = useState<{ removed: RemovedMealLine; details: MealDetails }>()
   const [justFinalized, setJustFinalized] = useState(false)
@@ -226,6 +232,6 @@ export function RecordPage({ date, log, logs, foods, settings, planVersion, init
     {copyMessage && <div className="copy-toast" role="status">{copyMessage}</div>}
     {deletedMealLine && <div className="undo-toast" role="status"><span>已刪除「{deletedMealLine.removed.line.label}」<small>餐點總計已重新計算</small></span><button type="button" onClick={() => { updateDetails(restoreMealLine(deletedMealLine.details, deletedMealLine.removed)); if (deleteTimer.current) window.clearTimeout(deleteTimer.current); setDeletedMealLine(undefined); setExpandedMeal(deletedMealLine.removed.meal) }}>復原</button></div>}
     {justFinalized && <div className="finalize-success" role="status"><Check /><strong>今日結算完成</strong><span>攝取 {Math.round(log.intakeKcal ?? 0)} · 消耗 {Math.round(estimatedTDEE(log) ?? 0)} · 赤字 {Math.round(dailyDeficit(log) ?? 0)} kcal</span></div>}
-    <FoodAddSheet open={Boolean(foodSheet)} date={date} logs={logs} defaultMeal={foodSheet?.meal ?? 'lunch'} initialTab={foodSheet?.tab} initialTemplateId={foodSheet?.templateId} initialFoodId={foodSheet?.foodId} details={details} templates={templates} foods={foods} onApply={async (next, meal, message) => { const saved = await updateDetails(next); if (!saved) throw new Error('save failed'); setExpandedMeal(meal); showCopyMessage(message) }} onClose={() => setFoodSheet(undefined)} />
+    <FoodAddSheet open={Boolean(foodSheet)} date={date} logs={logs} defaultMeal={foodSheet?.meal ?? 'lunch'} initialTab={foodSheet?.tab} initialTemplateId={foodSheet?.templateId} initialFoodId={foodSheet?.foodId} details={details} templates={templates} foods={foods} online={online} aiEnabled={aiEnabled} metadata={foodMetadata} onEnableAI={onEnableAI} onAIRun={onAIRun} onCommitMetadata={onCommitMetadata} onApply={async (next, meal, message) => { const saved = await updateDetails(next); if (!saved) throw new Error('save failed'); setExpandedMeal(meal); showCopyMessage(message) }} onClose={() => setFoodSheet(undefined)} />
   </section>
 }

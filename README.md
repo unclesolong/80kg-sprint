@@ -1,11 +1,11 @@
 # 80KG Sprint
 
-一個為 iPhone 設計的 7 天減重紀錄 PWA。使用者可以記錄晨間體重、Apple Watch 手動輸入的活動／靜態能量、運動明細、飲食與營養素、飲水、前一晚睡眠、排便與身體感受，並查看趨勢與保守的估算。
+一個以 iPhone 為主、可長期使用的減脂規劃與健康紀錄 PWA。除了既有 7 天 Sprint，使用者也能建立有安全邊界與版本歷史的長期計畫、完成每週檢討，以及用批次飲食流程記錄營養。
 
 介面使用繁體中文，日期依 `Europe/Berlin` 本地日期處理。App 支援離線、iOS safe area、深／淺色模式，以及加入 iPhone 主畫面。
 
 > [!IMPORTANT]
-> GitHub 只儲存程式碼。每日健康紀錄只儲存在使用者裝置的 IndexedDB，不會上傳到 GitHub 或任何伺服器。
+> GitHub 只儲存程式碼。每日健康紀錄與正式計畫預設只儲存在使用者裝置的 IndexedDB，不會上傳到 GitHub。只有使用者明確啟用並主動按下 AI／外部食物搜尋按鈕時，白名單資料才會送到獨立 API Worker；不啟用時所有核心流程仍可本地使用。
 >
 > 不可將匯出的 JSON、CSV、TXT、PNG、PDF 紀錄或任何含個人健康資料的檔案 commit 到 GitHub。更改 repository 名稱或網站網域前，必須先從設定頁匯出 JSON 備份；不同網址會使用不同的瀏覽器儲存空間。
 
@@ -40,14 +40,19 @@ PNG 與 PDF 都在瀏覽器記憶體中產生，不會自動上傳。若要交�
 - 首頁改顯示晚餐主餐預算；營養素標示完整度，體重預測依 7／14 筆晨重分級顯示信心。
 - IndexedDB 維持版本 1，`BackupPayload.schemaVersion` 維持 1；載入既有紀錄不會自動遷移或回寫。
 
-## V06 長期減脂 Planner（Phase 1–2）
+## V06 長期減脂 Planner（Phase 1–5）
 
 - 既有使用者仍可直接使用 7 日 Sprint；首頁與設定提供非阻斷式的「建立長期減脂計畫」入口。
 - 建立流程包含基本資料、生活型態、10 項安全篩檢與本機計算的計畫草稿；只有最後明確確認後才會寫入 Planner。
 - 熱量、蛋白質、喝水、睡眠與運動目標先由 deterministic Safety Engine 限制在安全邊界內。阻擋或需專業協助的情況不會產生自助減脂處方。
 - 首頁、紀錄頁與趨勢頁會讀取選定日期當時生效的 immutable `PlanVersion`；每週檢討的調整會建立新版本，不會覆蓋歷史版本。
 - Planner 使用獨立的 `80kg-sprint-planner` IndexedDB version 1 和獨立 JSON 備份。原有 `80kg-sprint` DB、stores 與 `BackupPayload.schemaVersion = 1` 完全不變。
-- Phase 1–2 的建議文字由本機規則產生，不呼叫 AI、不上傳健康資料。AI 草稿／後端驗證留到 Phase 3 之後。
+- Phase 3 提供獨立 Cloudflare Worker：OpenAI 金鑰只存在 Worker secret，Responses API 使用 strict JSON Schema 與 `store: false`，並有 CORS、大小、timeout、rate limit、domain safety 與安全錯誤邊界。
+- Phase 4 的 AI 功能完全選用：第一次使用會逐項列明送出／不送出的資料；撤回後停止新請求，也可只清除本機 `aiRuns`，不影響 DailyLog 或正式計畫。
+- 初始計畫永遠先產生 deterministic 本地安全草稿。AI 只協助修改草稿；schema 或安全驗證失敗時保留本地版本，使用者最後確認前不會寫入正式 `PlanVersion`。
+- 每週檢討只送完整週的 aggregate，不送原始每日紀錄。資料不足時完全不呼叫 AI；熱量、有氧、肌力與重點都能逐項接受或拒絕，套用時建立 immutable 新版本。
+- AI 食物解析只拆解名稱、份量、生熟與品牌疑問，不產生 kcal／蛋白質。營養來自 Local、BLS gateway、USDA 或 Open Food Facts 候選，經使用者確認後才加入同一次批次草稿；未知值顯示 `—`，不冒充 `0`。
+- Phase 5 加入原創 WebP 視覺、375／390／430／760 px 響應式處理、深淺色、safe area、44 px touch target、focus trap、reduced motion 與圖表的螢幕閱讀摘要。
 
 ## 本機啟動
 
@@ -59,6 +64,17 @@ npm run dev
 ```
 
 Vite 顯示本機網址後，以瀏覽器開啟。開發模式使用根路徑 `/`；production build 會自動使用 GitHub Pages 專案路徑 `/80kg-sprint/`。
+
+預設 `VITE_AI_ENABLED=false`，因此不需要後端也能完整使用。要測試選用 AI，先複製 `.env.example` 為 `.env.local`，填入已部署 Worker 的 HTTPS URL；瀏覽器端只能放 `VITE_AI_ENABLED` 與 `VITE_AI_API_BASE_URL`，不可放任何 provider secret。
+
+Worker 的本機測試與部署說明位於 [`api-worker/README.md`](api-worker/README.md)：
+
+```bash
+cd api-worker
+npm ci
+npm run test
+npm run typecheck
+```
 
 測試與建置：
 
@@ -95,7 +111,7 @@ https://<USERNAME>.github.io/80kg-sprint/
 5. 開啟 **Actions** 頁面，等待 `Deploy 80KG Sprint to GitHub Pages` 顯示成功。工作流程也可由 **Run workflow** 手動執行。
 6. 開啟 `https://<USERNAME>.github.io/80kg-sprint/`。首次部署有時需要幾分鐘生效。
 
-`.github/workflows/deploy.yml` 會在 push 到 `main` 後自動執行 `npm ci`、單元測試與 production build，再使用 GitHub 官方 Pages Actions 上傳並部署 `dist`。
+`.github/workflows/deploy.yml` 會在 push 到 `main` 後自動執行前端與 Worker 測試、Worker typecheck 及 production build，再使用 GitHub 官方 Pages Actions 上傳並部署 `dist`。Worker 是獨立服務，不會由 Pages workflow 自動部署；必須先依 `api-worker/README.md` 設定 secrets 並部署，確認 `/v1/health` 後，才在 GitHub Actions repository variables 設定 `VITE_AI_ENABLED=true` 與 `VITE_AI_API_BASE_URL`。
 
 ## 加入 iPhone 主畫面
 
@@ -104,7 +120,7 @@ https://<USERNAME>.github.io/80kg-sprint/
 3. 選擇「加入主畫面」。
 4. 確認名稱後按「加入」。
 
-安裝後可離線查看與輸入。網路恢復時不需要同步，因為資料始終只存本機。
+安裝後可離線查看與輸入。本地規劃、記錄、手動食物與已確認候選不需要同步；AI 與外部食物搜尋只有在使用者主動要求且有網路時才會連線。
 
 ## Repository 名稱不是 `80kg-sprint` 時
 
@@ -118,7 +134,7 @@ const productionBase = '/my-sprint/'
 
 ## 資料安全與限制
 
-- 不需要登入、後端、API key 或雲端資料庫。
+- 核心本地功能不需要登入、後端、API key 或雲端資料庫；選用 AI／外部食物搜尋需要已部署的 API Worker。
 - 不使用廣告、追蹤或分析 SDK。
 - PWA 無法直接讀取 Apple Health／HealthKit；Apple Watch 數值由使用者手動輸入，且消耗結果標示為估算。
 - Apple Watch「活動能量」是截至輸入當下的全日累積快照。白天可反覆更新；個別運動預設只作明細、不重複加總。只有確定未反映在 Watch 摘要時，才能從進階選項手動加入。
@@ -126,3 +142,5 @@ const productionBase = '/my-sprint/'
 - `7700 kcal/kg` 只用於「脂肪等值估算」，不代表精確脂肪減少量。
 - 體重預測不是保證，並標示約 `±0.5 kg` 的水分波動區間。
 - 請勿在 repository 放入 API key、密碼、個人健康紀錄或測試用真實資料。
+- `store: false` 表示不要求 OpenAI 將回應保存為模型回應紀錄，但不等於所有網路服務都保證絕對零留存；啟用前的同意畫面會再次說明。
+- 外部食物來源可能包含各自的授權與 attribution；BLS gateway 的資料授權由部署者確認，USDA FoodData Central 與 Open Food Facts 的使用方式詳見 Worker 文件。

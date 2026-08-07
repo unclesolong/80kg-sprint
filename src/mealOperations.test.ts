@@ -3,7 +3,7 @@ import { mealTotals } from './calculations'
 import { defaultFoodTemplates, emptyLog, emptyMealDetails, migrateLog } from './defaults'
 import { createFoodTemplateChange } from './foodTemplates'
 import {
-  addFoodTemplate, addMealLine, addMealLines, commitDraftEntries, commonIngredients, findFoodTemplate, ingredientMealLine,
+  addFoodTemplate, addMealLine, addMealLines, commitDraftEntries, commitDraftEntriesWithMetadata, commonIngredients, findFoodTemplate, ingredientMealLine,
   manualMealLine, mergeDraftFoodEntry, moveMealLine, nutritionPatch, recentFoodItems, removeMealLine, restoreMealLine,
   updateMealLineAmount, type DraftFoodEntry
 } from './mealOperations'
@@ -131,6 +131,16 @@ describe('飲食紀錄核心操作', () => {
     expect(base).toEqual(before)
     expect(next.lunch.slice(0, base.lunch.length)).toEqual(base.lunch)
     expect(next.lunch.find((line) => line.label === '既有食物')?.key).toBe('existing-key')
+  })
+
+  it('先儲存 legacy 餐點，metadata 失敗也不撤銷紀錄', async () => {
+    const entry: DraftFoodEntry = { draftId: 'provider', meal: 'lunch', source: 'provider', line: { key: 'provider-line', label: '已確認食物', amount: 100, unit: 'g', kcalPerUnit: 1.2, proteinPerUnit: .22 } }
+    const onApply = vi.fn().mockResolvedValue(undefined)
+    const metadataWrite = vi.fn().mockRejectedValue(new Error('planner metadata unavailable'))
+    const next = await commitDraftEntriesWithMetadata(emptyMealDetails(), [entry], onApply, [metadataWrite])
+    expect(onApply).toHaveBeenCalledOnce()
+    expect(metadataWrite).toHaveBeenCalledOnce()
+    expect(next.lunch.some((line) => line.key === 'provider-line')).toBe(true)
   })
 
   it('相同常用食材同餐次重複選擇會增加份量，不建立重複列', () => {

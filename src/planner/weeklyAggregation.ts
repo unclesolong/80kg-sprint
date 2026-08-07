@@ -3,6 +3,20 @@ import type { DailyLog } from '../types'
 import type { AIComment, PlanVersion, WeeklyAggregate } from './types'
 
 const validAverage = (values: Array<number | undefined>) => average(values)
+const dayNumber = (date: string) => Date.parse(`${date}T12:00:00Z`) / 86_400_000
+
+const weeklyWeightSlope = (logs: DailyLog[]) => {
+  const points = logs
+    .filter((log) => log.weightCondition === 'morning_fasted' && log.weightKg != null)
+    .map((log) => ({ x: dayNumber(log.date), y: log.weightKg as number }))
+  if (points.length < 2) return undefined
+  const meanX = points.reduce((sum, point) => sum + point.x, 0) / points.length
+  const meanY = points.reduce((sum, point) => sum + point.y, 0) / points.length
+  const denominator = points.reduce((sum, point) => sum + (point.x - meanX) ** 2, 0)
+  if (!denominator) return undefined
+  const dailySlope = points.reduce((sum, point) => sum + (point.x - meanX) * (point.y - meanY), 0) / denominator
+  return Math.round(dailySlope * 7 * 10) / 10
+}
 
 export const aggregateWeek = (logs: DailyLog[], weekStart: string, weekEnd: string, previousLogs: DailyLog[] = []): { dataCompleteness: number; summary: WeeklyAggregate } => {
   const week = logs.filter((log) => log.date >= weekStart && log.date <= weekEnd)
@@ -11,9 +25,11 @@ export const aggregateWeek = (logs: DailyLog[], weekStart: string, weekEnd: stri
   const intake = week.filter((log) => log.intakeKcal != null)
   const finalized = week.filter((log) => log.dayFinalized)
   const fieldsPerDay = week.map((log) => [log.weightKg, log.intakeKcal, log.proteinG, log.waterMl, effectiveActiveKcal(log), log.steps, log.sleepHours, log.lowerLegTightness].filter((value) => value != null).length + (log.dayFinalized ? 1 : 0))
-  const completeness = week.length ? Math.round(fieldsPerDay.reduce((sum, value) => sum + value, 0) / (week.length * 9) * 100) : 0
+  const expectedDays = Math.max(1, Math.min(7, Math.round(dayNumber(weekEnd) - dayNumber(weekStart)) + 1))
+  const completeness = Math.round(fieldsPerDay.reduce((sum, value) => sum + value, 0) / (expectedDays * 9) * 100)
   const currentWeight = validAverage(morning.map((log) => log.weightKg))
   const previousWeight = validAverage(previousMorning.map((log) => log.weightKg))
+  const currentSlope = weeklyWeightSlope(morning)
   return {
     dataCompleteness: completeness,
     summary: {
@@ -22,7 +38,7 @@ export const aggregateWeek = (logs: DailyLog[], weekStart: string, weekEnd: stri
       finalizedDayCount: finalized.length,
       averageMorningWeightKg: currentWeight,
       previousAverageMorningWeightKg: previousWeight,
-      weightTrendKg: currentWeight != null && previousWeight != null ? Math.round((currentWeight - previousWeight) * 10) / 10 : undefined,
+      weightTrendKg: currentSlope ?? (currentWeight != null && previousWeight != null ? Math.round((currentWeight - previousWeight) * 10) / 10 : undefined),
       averageIntakeKcal: validAverage(week.map((log) => log.intakeKcal)),
       averageProteinG: validAverage(week.map((log) => log.proteinG)),
       averageWaterMl: validAverage(week.map((log) => log.waterMl)),

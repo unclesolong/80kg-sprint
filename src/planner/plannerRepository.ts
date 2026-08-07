@@ -2,7 +2,7 @@ import type { PlannerDraft, FatLossPlan, PlanVersion, SafetyDecision, UserProfil
 
 const makeId = (prefix: string) => `${prefix}-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`
 
-export const buildInitialPlanBundle = (profile: UserProfile, decision: SafetyDecision, draft: PlannerDraft, startDate: string, now = new Date().toISOString()) => {
+export const buildInitialPlanBundle = (profile: UserProfile, decision: SafetyDecision, draft: PlannerDraft, startDate: string, now = new Date().toISOString(), source: 'manual' | 'ai_assisted' = 'manual') => {
   if (!decision.bounds || decision.status === 'blocked' || decision.status === 'restricted') throw new Error('Safety decision does not allow a self-serve plan')
   const plan: FatLossPlan = {
     id: makeId('plan'),
@@ -11,7 +11,7 @@ export const buildInitialPlanBundle = (profile: UserProfile, decision: SafetyDec
     startDate,
     goalWeightKg: profile.goalWeightKg,
     createdAt: now,
-    source: 'manual',
+    source,
     safetyDecisionSnapshot: decision
   }
   const version: PlanVersion = {
@@ -34,7 +34,7 @@ export const buildInitialPlanBundle = (profile: UserProfile, decision: SafetyDec
     focusTasks: [...draft.focusTasks],
     comment: { ...draft.comment, bullets: [...draft.comment.bullets] },
     createdAt: now,
-    createdBy: 'manual'
+    createdBy: source
   }
   return { plan, version }
 }

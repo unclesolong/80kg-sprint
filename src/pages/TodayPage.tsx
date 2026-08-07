@@ -4,18 +4,19 @@ import { buildAdvice } from '../advice'
 import { achievementRate, activityTotals, dailyCompletion, daysBetween, dinnerBudgetSummary, finalizedCumulativeDeficit, finalizedDeficit, nutritionCoverageDisplay, remainingActivity, weightTrendStatus } from '../calculations'
 import { ensureMealDetails } from '../mealOperations'
 import { PlanHero } from '../components/planner/PlanHero'
-import type { FatLossPlan, PlanVersion, UserProfile } from '../planner/types'
+import type { FatLossPlan, PlanVersion, UserProfile, WeeklyReview } from '../planner/types'
 import type { ChallengeSettings, DailyLog, FoodTemplate, RecordStage } from '../types'
 
 const rounded = (value?: number) => value == null ? '—' : Math.round(value).toLocaleString('zh-TW')
 
-export function TodayPage({ today, log, logs, settings, plan, planVersion, plannerProfile, plannerError, onOpenPlanner, onOpenWeeklyReview, onQuickAdd, onOpenRecord, onOpenFoodTemplate }: {
+export function TodayPage({ today, log, logs, settings, plan, planVersion, latestWeeklyReview, plannerProfile, plannerError, onOpenPlanner, onOpenWeeklyReview, onQuickAdd, onOpenRecord, onOpenFoodTemplate }: {
   today: string
   log: DailyLog
   logs: DailyLog[]
   settings: ChallengeSettings
   plan?: FatLossPlan
   planVersion?: PlanVersion
+  latestWeeklyReview?: WeeklyReview
   plannerProfile?: UserProfile
   plannerError?: string
   onOpenPlanner: () => void
@@ -92,7 +93,7 @@ export function TodayPage({ today, log, logs, settings, plan, planVersion, plann
   ]
 
   return <section className="page today-page sprint-home">
-    {plan && planVersion ? <PlanHero today={today} log={log} plan={plan} version={planVersion} profile={plannerProfile} currentWeight={currentWeight} onOpenPlan={onOpenPlanner} onOpenWeeklyReview={onOpenWeeklyReview} /> : <header className="sprint-hero hero-card">
+    {plan && planVersion ? <PlanHero today={today} log={log} plan={plan} version={planVersion} latestReview={latestWeeklyReview} profile={plannerProfile} currentWeight={currentWeight} onOpenPlan={onOpenPlanner} onOpenWeeklyReview={onOpenWeeklyReview} /> : <header className="sprint-hero hero-card">
       <div className="hero-top"><span>第 {currentDay}／{totalDays} 天</span><span className={`finalized-badge ${log.dayFinalized ? 'done' : ''}`}>{log.dayFinalized ? <><Check size={14} /> 已結算</> : '尚未結算'}</span></div>
       <div className="hero-weight"><strong>{settings.baselineWeightKg.toFixed(1)}</strong><span>kg</span><i>→</i><strong>{settings.targetWeightKg.toFixed(1)}</strong><span>kg</span></div>
       <p>最新晨間 <b>{currentWeight?.toFixed(1) ?? '—'} kg</b><span>距離目標 {currentWeight == null ? '—' : Math.max(0, currentWeight - settings.targetWeightKg).toFixed(1)} kg</span></p>

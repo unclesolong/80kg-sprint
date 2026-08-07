@@ -1,0 +1,5 @@
+.dev.vars
+.wrangler/
+coverage/
+node_modules/
+wrangler.toml

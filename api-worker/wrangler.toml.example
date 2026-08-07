@@ -1,0 +1,16 @@
+name = "80kg-sprint-api-worker"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+workers_dev = true
+
+# Copy this file to wrangler.toml. Keep secrets out of this file and use
+# `npx wrangler secret put NAME` for OPENAI_API_KEY and USDA_API_KEY.
+[vars]
+OPENAI_MODEL_PLANNER = "REPLACE_WITH_PINNED_PLANNER_MODEL"
+OPENAI_MODEL_PARSER = "REPLACE_WITH_PINNED_PARSER_MODEL"
+OPENAI_TIMEOUT_MS = "12000"
+ALLOWED_ORIGINS = "https://unclesolong.github.io"
+FOOD_PROVIDER_USER_AGENT = "80kg-sprint/1.0 (replace-with-operator-contact)"
+
+# Optional: an operator-controlled adapter that returns normalized BLS rows.
+# BLS_API_BASE_URL = "https://food-gateway.example.com/v1/bls/search"

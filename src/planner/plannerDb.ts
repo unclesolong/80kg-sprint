@@ -1,6 +1,6 @@
 import { openDB } from 'idb'
 import { emptyPlannerSnapshot } from './planSelectors'
-import type { FatLossPlan, PlannerSnapshot, PlanVersion, SafetyScreen, UserProfile, WeeklyReview } from './types'
+import type { AIRun, FatLossPlan, FoodMetadata, PlannerConsent, PlannerSnapshot, PlanVersion, SafetyScreen, UserProfile, WeeklyReview } from './types'
 
 export const PLANNER_DB_NAME = '80kg-sprint-planner'
 export const PLANNER_DB_VERSION = 1
@@ -47,21 +47,36 @@ export const loadPlannerSnapshot = async (): Promise<PlannerSnapshot> => {
 
 export const loadPlannerSnapshotIfExists = async () => await plannerDatabaseExists() ? loadPlannerSnapshot() : emptyPlannerSnapshot()
 
-export const saveInitialPlannerBundle = async (profile: UserProfile, safety: SafetyScreen, plan: FatLossPlan, version: PlanVersion) => {
+export const saveInitialPlannerBundle = async (profile: UserProfile, safety: SafetyScreen, plan: FatLossPlan, version: PlanVersion, consent?: PlannerConsent) => {
   const db = await openPlannerDb()
-  const tx = db.transaction(['profile', 'safety', 'plans', 'planVersions'], 'readwrite')
-  await Promise.all([
+  const stores = consent ? ['profile', 'safety', 'plans', 'planVersions', 'consents'] as const : ['profile', 'safety', 'plans', 'planVersions'] as const
+  const tx = db.transaction(stores, 'readwrite')
+  const writes = [
     tx.objectStore('profile').put(profile, 'current'),
     tx.objectStore('safety').put(safety, 'current'),
     tx.objectStore('plans').put(plan),
     tx.objectStore('planVersions').put(version)
-  ])
+  ]
+  if (consent) writes.push(tx.objectStore('consents').put(consent))
+  await Promise.all(writes)
   await tx.done
   if (typeof localStorage !== 'undefined') localStorage.setItem(PLANNER_MARKER, '1')
 }
 
 export const savePlanVersion = async (version: PlanVersion) => (await openPlannerDb()).put('planVersions', version)
 export const saveWeeklyReview = async (review: WeeklyReview) => (await openPlannerDb()).put('weeklyReviews', review)
+export const savePlannerConsent = async (consent: PlannerConsent) => {
+  const result = await (await openPlannerDb()).put('consents', consent)
+  if (typeof localStorage !== 'undefined') localStorage.setItem(PLANNER_MARKER, '1')
+  return result
+}
+export const saveAIRun = async (run: AIRun) => (await openPlannerDb()).put('aiRuns', run)
+export const clearAIRuns = async () => (await openPlannerDb()).clear('aiRuns')
+export const saveFoodMetadata = async (metadata: FoodMetadata) => {
+  const result = await (await openPlannerDb()).put('foodMetadata', metadata)
+  if (typeof localStorage !== 'undefined') localStorage.setItem(PLANNER_MARKER, '1')
+  return result
+}
 
 export const replacePlannerSnapshot = async (snapshot: PlannerSnapshot) => {
   const db = await openPlannerDb()

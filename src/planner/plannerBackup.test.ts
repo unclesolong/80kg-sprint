@@ -21,4 +21,14 @@ describe('planner backup', () => {
     expect(validatePlannerBackup({ schemaVersion: 1, exportedAt: 'x', planner: { plans: [] } })).toBe(false)
     expect(validatePlannerBackup({ schemaVersion: 2, exportedAt: 'x', planner: emptyPlannerSnapshot() })).toBe(false)
   })
+
+  it('rejects nested corruption and unexpected private stores', () => {
+    const corruptVersion = makePlannerBackup(emptyPlannerSnapshot()) as unknown as Record<string, unknown>
+    const planner = corruptVersion.planner as Record<string, unknown>
+    planner.planVersions = [{ id: 'broken', calorieTargetKcal: '900' }]
+    expect(validatePlannerBackup(corruptVersion)).toBe(false)
+    const extraStore = makePlannerBackup(emptyPlannerSnapshot()) as unknown as Record<string, unknown>
+    ;(extraStore.planner as Record<string, unknown>).aiRuns = [{ rawRequest: 'private' }]
+    expect(validatePlannerBackup(extraStore)).toBe(false)
+  })
 })

@@ -6,6 +6,11 @@ outputs/
 *.local
 *.log
 *.tsbuildinfo
+.env
+.env.*
+!.env.example
+.dev.vars
+**/.dev.vars
 vite.config.js
 vite.config.d.ts
 80kg-sprint-backup-*.json

@@ -793,3 +793,81 @@ input, select, textarea { font-size: 1rem; }
   .meal-item-main { display: block; }
   .meal-item-main span { display: block; margin-top: 2px; }
 }
+
+/* V05 · batch food entry and bounded analytics */
+.food-sheet { display: flex; flex-direction: column; }
+.food-sheet-tools { display: grid; grid-template-columns: minmax(0, 1fr) 116px; gap: 8px; padding: 0 12px 10px; border-bottom: 1px solid var(--line); }
+.food-search { position: relative; min-width: 0; }
+.food-search svg { position: absolute; z-index: 1; left: 10px; top: 50%; width: 17px; height: 17px; color: var(--muted); transform: translateY(-50%); pointer-events: none; }
+.food-search input { width: 100%; min-height: 44px; padding: 8px 10px 8px 34px; font-size: .875rem; }
+.sheet-meal-select { color: var(--muted); font-size: .6875rem; }
+.sheet-meal-select select { width: 100%; min-height: 28px; margin-top: 1px; padding: 3px 7px; font-size: .8125rem; }
+.food-sheet-tabs { grid-template-columns: repeat(5, minmax(0, 1fr)); padding-top: 7px; }
+.food-sheet-content { min-height: 0; flex: 1 1 auto; }
+.food-picker-grid button { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; }
+.food-picker-grid button > span { min-width: 0; }
+.food-picker-grid button > svg, .food-picker-list button > svg { width: 17px; height: 17px; flex: 0 0 auto; color: var(--green); }
+.food-picker-list small { white-space: normal; line-height: 1.4; }
+.manual-add-draft { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 46px; }
+.manual-add-draft svg { width: 17px; }
+.draft-entry-list { display: grid; gap: 6px; margin-top: 14px; padding-top: 13px; border-top: 1px solid var(--line); }
+.draft-entry-list h3 { margin: 0 0 2px; font-size: .8125rem; }
+.draft-entry-list > div { display: grid; grid-template-columns: minmax(0, 1fr) 104px 36px; align-items: center; gap: 7px; padding: 8px; border-radius: 12px; background: var(--card-2); }
+.draft-entry-list span, .draft-entry-list strong, .draft-entry-list small { display: block; min-width: 0; }
+.draft-entry-list strong { overflow: hidden; font-size: .8125rem; text-overflow: ellipsis; white-space: nowrap; }
+.draft-entry-list small { margin-top: 2px; color: var(--muted); font-size: .6875rem; }
+.draft-entry-list label { position: relative; }
+.draft-entry-list input { width: 100%; min-height: 38px; padding: 6px 34px 6px 8px; font-size: .8125rem; }
+.draft-entry-list i { position: absolute; right: 8px; top: 50%; color: var(--muted); font-size: .6875rem; font-style: normal; transform: translateY(-50%); pointer-events: none; }
+.draft-entry-list > div > button { width: 36px; height: 36px; display: grid; place-items: center; padding: 0; color: var(--red); }
+.draft-entry-list svg { width: 15px; }
+.discard-draft-prompt { margin: 0 12px 8px; padding: 12px; border: 1px solid color-mix(in srgb, var(--yellow), transparent 45%); border-radius: 14px; background: color-mix(in srgb, var(--yellow), transparent 91%); }
+.discard-draft-prompt strong { display: block; font-size: .8125rem; }
+.discard-draft-prompt > div { display: flex; justify-content: flex-end; gap: 7px; margin-top: 9px; }
+.discard-draft-prompt button { min-height: 38px; padding: 7px 10px; font-size: .75rem; }
+.food-sheet > footer.draft-save-bar { display: flex; grid-template-columns: none; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }
+.draft-save-bar > div:first-child { min-width: 0; }
+.draft-save-bar span, .draft-save-bar strong, .draft-save-bar small { display: block; }
+.draft-save-bar span { color: var(--muted); font-size: .6875rem; }
+.draft-save-bar strong { margin-top: 2px; font-size: .8125rem; white-space: nowrap; }
+.draft-save-bar small { margin-top: 3px; color: var(--red); font-size: .6875rem; }
+.draft-save-bar > div:last-child { display: flex; flex: 0 0 auto; gap: 7px; }
+.draft-save-bar button { min-height: 42px; padding: 7px 11px; font-size: .75rem; white-space: nowrap; }
+
+.nutrition-readonly small { display: block; margin-top: 4px; color: var(--muted); font-size: .6875rem; }
+.nutrient-coverage-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 12px; }
+.nutrient-coverage-grid > div { min-width: 0; padding: 9px 10px; border-radius: 12px; background: var(--card-2); }
+.nutrient-coverage-grid span, .nutrient-coverage-grid strong, .nutrient-coverage-grid small { display: block; }
+.nutrient-coverage-grid span, .nutrient-coverage-grid small { color: var(--muted); font-size: .6875rem; }
+.nutrient-coverage-grid strong { margin-top: 3px; font-size: .8125rem; }
+.nutrient-coverage-grid small { margin-top: 3px; line-height: 1.35; }
+.dinner-budget strong small { font-size: .6875rem; }
+
+.compact-chart-tooltip { width: min(220px, calc(100vw - 32px)); max-width: 220px; padding: 10px 11px; overflow-wrap: anywhere; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--text); box-shadow: 0 12px 28px rgba(0, 0, 0, .3); }
+.compact-chart-tooltip > strong { display: block; margin-bottom: 6px; font-size: .75rem; }
+.compact-chart-tooltip > div { display: flex; justify-content: space-between; gap: 12px; margin-top: 4px; font-size: .6875rem; }
+.compact-chart-tooltip span { color: var(--muted); }
+.compact-chart-tooltip b { text-align: right; white-space: normal; }
+.chart-inspector { margin: 10px 10px 2px; padding: 12px; border-radius: 14px; background: var(--card-2); }
+.chart-inspector > strong { display: block; margin-bottom: 8px; font-size: .875rem; }
+.chart-inspector dl { display: grid; gap: 6px; margin: 0; }
+.chart-inspector dl > div { display: flex; justify-content: space-between; gap: 14px; min-width: 0; }
+.chart-inspector dt, .chart-inspector dd { margin: 0; font-size: .75rem; }
+.chart-inspector dt { color: var(--muted); }
+.chart-inspector dd { font-weight: 800; text-align: right; }
+
+@media (max-width: 560px) {
+  .weight-desktop-tooltip { display: none; }
+}
+
+@media (max-width: 390px) {
+  .food-sheet-tools { grid-template-columns: minmax(0, 1fr) 102px; }
+  .food-sheet-tabs button { font-size: .6875rem; }
+  .draft-save-bar strong { white-space: normal; }
+  .draft-entry-list > div { grid-template-columns: minmax(0, 1fr) 90px 34px; }
+}
+
+@media (max-width: 350px) {
+  .food-sheet > footer.draft-save-bar { align-items: stretch; flex-direction: column; }
+  .draft-save-bar > div:last-child { display: grid; grid-template-columns: 1fr 1fr; }
+}

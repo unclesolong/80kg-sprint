@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activityTotals, cumulativeDeficit, dailyDeficit, effectiveActiveKcal, estimatedTDEE, fatEquivalentKg, finalizedDeficit, linearRegressionProjection, mealTotals, movingAverage, shouldShowSevenDayAverage, sleepDurationHours, targetWeightForDate, targetWeightRangeForDate, weightTrendStatus } from './calculations'
+import { activityTotals, cumulativeDeficit, dailyDeficit, dinnerBudgetSummary, effectiveActiveKcal, estimatedTDEE, fatEquivalentKg, finalizedDeficit, linearRegressionProjection, mealTotals, movingAverage, nutritionCoverageDisplay, shouldShowSevenDayAverage, sleepDurationHours, targetWeightForDate, targetWeightRangeForDate, weightPrediction, weightTrendStatus } from './calculations'
 import { defaultMealDetails, defaultSettings, emptyLog } from './defaults'
 
 describe('能量計算', () => {
@@ -126,4 +126,37 @@ describe('睡眠歸檔', () => {
   it('跨午夜計算前一晚睡眠', () => expect(sleepDurationHours('23:53', '06:53')).toBe(7))
   it('同一天時間不額外加 24 小時', () => expect(sleepDurationHours('00:30', '07:00')).toBe(6.5))
   it('缺少起訖時間不製造數字', () => expect(sleepDurationHours('23:30')).toBeUndefined())
+})
+
+describe('V05 衍生計算', () => {
+  const line = (key: string, kcal: number, fiber?: number) => ({ key, label: key, amount: 1, unit: '份' as const, kcalPerUnit: kcal, proteinPerUnit: 10, ...(fiber == null ? {} : { fiberPerUnit: fiber }) })
+
+  it('晚餐預算會先扣除早餐、午餐與 evening 食物', () => {
+    const details = emptyLog('2026-08-07').mealDetails!
+    details.breakfast = [line('breakfast', 560)]
+    details.lunch = [line('lunch', 530)]
+    details.evening = [line('soy-chia', 173)]
+    expect(dinnerBudgetSummary(details, defaultSettings)).toMatchObject({ budget: 587, eveningKcal: 173 })
+  })
+
+  it('晚餐超標時 remaining 不會成為負數', () => {
+    const details = emptyLog('2026-08-07').mealDetails!
+    details.breakfast = [line('breakfast', 560)]
+    details.lunch = [line('lunch', 530)]
+    details.evening = [line('evening', 173)]
+    details.dinner = [line('dinner', 670)]
+    expect(dinnerBudgetSummary(details, defaultSettings)).toMatchObject({ budget: 587, remaining: 0, over: 83 })
+  })
+
+  it('營養欄位不完整時顯示至少與部分資料涵蓋率', () => {
+    const details = emptyLog('2026-08-07').mealDetails!
+    details.lunch = [line('known', 100, 7), line('unknown', 100)]
+    expect(nutritionCoverageDisplay(details, 'fiber', 7)).toEqual({ coverage: 50, value: '至少 7.0 g', note: '部分資料 · 涵蓋 50%' })
+  })
+
+  it('少於 7 筆體重不顯示精確預測，7 至 13 筆標示低信心', () => {
+    const points = Array.from({ length: 7 }, (_, index) => ({ date: `2026-08-0${index + 1}`, weight: 81 - index * .1 }))
+    expect(weightPrediction(points.slice(0, 6), '2026-08-08')).toEqual({ confidence: 'insufficient', sampleCount: 6 })
+    expect(weightPrediction(points, '2026-08-08')).toMatchObject({ confidence: 'low', sampleCount: 7 })
+  })
 })

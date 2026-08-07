@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { mealTotals } from './calculations'
 import { defaultFoodTemplates, emptyLog, emptyMealDetails, migrateLog } from './defaults'
 import { createFoodTemplateChange } from './foodTemplates'
 import {
-  addFoodTemplate, addMealLine, commonIngredients, findFoodTemplate, ingredientMealLine,
-  manualMealLine, moveMealLine, nutritionPatch, removeMealLine, restoreMealLine, updateMealLineAmount
+  addFoodTemplate, addMealLine, addMealLines, commitDraftEntries, commonIngredients, findFoodTemplate, ingredientMealLine,
+  manualMealLine, mergeDraftFoodEntry, moveMealLine, nutritionPatch, recentFoodItems, removeMealLine, restoreMealLine,
+  updateMealLineAmount, type DraftFoodEntry
 } from './mealOperations'
 
 const chicken = () => commonIngredients().find((item) => item.id === 'chicken')!
@@ -115,5 +116,46 @@ describe('飲食紀錄核心操作', () => {
       expect(Math.abs(totals.fiber - meal.fiberG)).toBeLessThanOrEqual(1)
       expect(Math.abs(totals.sodium - meal.sodiumMg)).toBeLessThanOrEqual(2)
     }
+  })
+
+  it('批次加入 5 項只套用一次，且既有列與 key 完全保留', async () => {
+    const base = addMealLine(emptyMealDetails(), 'lunch', { key: 'existing-key', label: '既有食物', amount: 1, unit: '份', kcalPerUnit: 100, proteinPerUnit: 10 })
+    const before = structuredClone(base)
+    const entries: DraftFoodEntry[] = Array.from({ length: 5 }, (_, index) => ({
+      draftId: `draft-${index}`, meal: 'lunch', source: 'manual',
+      line: { key: `new-${index}`, label: `新食物 ${index}`, amount: 1, unit: '份', kcalPerUnit: 50, proteinPerUnit: 5 }
+    }))
+    const onApply = vi.fn()
+    const next = await commitDraftEntries(base, entries, onApply)
+    expect(onApply).toHaveBeenCalledTimes(1)
+    expect(base).toEqual(before)
+    expect(next.lunch.slice(0, base.lunch.length)).toEqual(base.lunch)
+    expect(next.lunch.find((line) => line.label === '既有食物')?.key).toBe('existing-key')
+  })
+
+  it('相同常用食材同餐次重複選擇會增加份量，不建立重複列', () => {
+    const ingredient = chicken()
+    const first: DraftFoodEntry = { draftId: 'first', meal: 'lunch', source: 'common', line: ingredientMealLine(ingredient, 200) }
+    const second: DraftFoodEntry = { draftId: 'second', meal: 'lunch', source: 'common', line: ingredientMealLine(ingredient, 100) }
+    const merged = mergeDraftFoodEntry(mergeDraftFoodEntry([], first), second)
+    expect(merged).toHaveLength(1)
+    expect(merged[0].line.amount).toBe(300)
+  })
+
+  it('稍後再次新增只追加，不取代原有餐點', () => {
+    const first = addMealLines(emptyMealDetails(), [{ meal: 'dinner', line: { key: 'first', label: '晚餐一', amount: 1, unit: '份', kcalPerUnit: 300, proteinPerUnit: 30 } }])
+    const second = addMealLines(first, [{ meal: 'dinner', line: { key: 'second', label: '晚餐二', amount: 1, unit: '份', kcalPerUnit: 200, proteinPerUnit: 20 } }])
+    expect(second.dinner.slice(-2).map((line) => line.key)).toEqual(['first', 'second'])
+    expect(second.dinner.slice(0, first.dinner.length)).toEqual(first.dinner)
+  })
+
+  it('最近使用只取 14 天內、同名去重並限制 12 項', () => {
+    const recentLog = { ...emptyLog('2026-08-07'), mealDetails: addMealLine(emptyMealDetails(), 'lunch', { key: 'new', label: '雞胸肉', amount: 200, unit: 'g', kcalPerUnit: 1, proteinPerUnit: .2 }) }
+    const duplicate = { ...emptyLog('2026-08-06'), mealDetails: addMealLine(emptyMealDetails(), 'dinner', { key: 'old', label: '雞胸肉', amount: 100, unit: 'g', kcalPerUnit: 1, proteinPerUnit: .2 }) }
+    const expired = { ...emptyLog('2026-07-20'), mealDetails: addMealLine(emptyMealDetails(), 'lunch', { key: 'expired', label: '過期食物', amount: 1, unit: '份', kcalPerUnit: 1, proteinPerUnit: 0 }) }
+    const items = recentFoodItems([expired, duplicate, recentLog], '2026-08-07')
+    expect(items.filter((item) => item.line.label === '雞胸肉')).toHaveLength(1)
+    expect(items.some((item) => item.line.label === '過期食物')).toBe(false)
+    expect(items.length).toBeLessThanOrEqual(12)
   })
 })

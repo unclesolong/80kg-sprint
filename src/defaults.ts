@@ -130,10 +130,10 @@ const migratedMealDetails = (log: DailyLog): MealDetails => {
       portionLabel: '份',
       kcalPerUnit: log.intakeKcal ?? 0,
       proteinPerUnit: log.proteinG ?? 0,
-      carbsPerUnit: log.carbsG ?? 0,
-      fatPerUnit: log.fatG ?? 0,
-      fiberPerUnit: log.fiberG ?? 0,
-      sodiumPerUnit: log.sodiumMg ?? 0
+      carbsPerUnit: log.carbsG,
+      fatPerUnit: log.fatG,
+      fiberPerUnit: log.fiberG,
+      sodiumPerUnit: log.sodiumMg
     })
   }
   return details

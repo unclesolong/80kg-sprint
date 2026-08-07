@@ -1,70 +1,141 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Plus, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Plus, Search, Trash2, X } from 'lucide-react'
+import { localDateString, mealTotals, parseLocalDate } from '../calculations'
 import {
-  addFoodTemplate, addMealLine, commonIngredients, customFoodMealLine, findFoodTemplate,
-  ingredientMealLine, manualMealLine, mealKeys, mealLabels, type MealKey
+  commitDraftEntries, commonIngredients, customFoodMealLine, ingredientMealLine, manualMealLine,
+  mealKeys, mealLabels, mergeDraftFoodEntry, recentFoodItems, templateMealLine,
+  type DraftFoodEntry, type MealKey
 } from '../mealOperations'
-import type { CustomFood, FoodTemplate, MealDetails } from '../types'
+import type { CustomFood, DailyLog, FoodTemplate, MealDetails, MealLine } from '../types'
 
-type SheetTab = 'common' | 'templates' | 'mine' | 'manual'
-type Selection =
-  | { kind: 'common'; id: string; amount: number }
-  | { kind: 'template'; id: string }
-  | { kind: 'mine'; id: string; amount: number }
-
-const tabLabels: Record<SheetTab, string> = { common: '常用食材', templates: '快捷套餐', mine: '我的食物', manual: '手動新增' }
+type SheetTab = 'recent' | 'common' | 'templates' | 'mine' | 'manual'
+const tabLabels: Record<SheetTab, string> = { recent: '最近', common: '常用', templates: '套餐', mine: '我的', manual: '手動' }
 const blankManual = () => ({ name: '', kcal: '', proteinG: '0', carbsG: '', fatG: '', fiberG: '', sodiumMg: '', portionLabel: '份' })
 
-export function FoodAddSheet({ open, defaultMeal, initialTab = 'common', initialTemplateId, details, templates, foods, onApply, onEditExisting, onClose }: {
+const cloneForDraft = (line: MealLine, prefix: string): MealLine => ({ ...line, key: `${prefix}-${crypto.randomUUID()}` })
+
+export function FoodAddSheet({ open, date, logs, defaultMeal, initialTab = 'recent', initialTemplateId, initialFoodId, details, templates, foods, onApply, onClose }: {
   open: boolean
+  date: string
+  logs: DailyLog[]
   defaultMeal: MealKey
   initialTab?: SheetTab
   initialTemplateId?: string
+  initialFoodId?: string
   details: MealDetails
   templates: FoodTemplate[]
   foods: CustomFood[]
-  onApply: (details: MealDetails, meal: MealKey, message: string) => void
-  onEditExisting: (meal: MealKey) => void
+  onApply: (details: MealDetails, meal: MealKey, message: string) => void | Promise<void>
   onClose: () => void
 }) {
   const ingredients = useMemo(commonIngredients, [])
+  const recent = useMemo(() => recentFoodItems(logs, date), [logs, date])
   const [tab, setTab] = useState<SheetTab>(initialTab)
   const [meal, setMeal] = useState<MealKey>(defaultMeal)
-  const [selection, setSelection] = useState<Selection>()
+  const [draftEntries, setDraftEntries] = useState<DraftFoodEntry[]>([])
   const [manual, setManual] = useState(blankManual)
-  const [duplicate, setDuplicate] = useState<FoodTemplate>()
+  const [query, setQuery] = useState('')
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const wasOpen = useRef(false)
+  const scrollY = useRef(0)
+  const trigger = useRef<HTMLElement | null>(null)
+  const draftEntriesRef = useRef<DraftFoodEntry[]>([])
+  const historyGuard = useRef(false)
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => { draftEntriesRef.current = draftEntries }, [draftEntries])
+  useEffect(() => { onCloseRef.current = onClose }, [onClose])
+
+  useEffect(() => {
+    if (open && !wasOpen.current) {
+      setTab(initialTab)
+      setMeal(defaultMeal)
+      setManual(blankManual())
+      setQuery('')
+      setConfirmDiscard(false)
+      setSaveError('')
+      const initialTemplate = initialTemplateId ? templates.find((item) => item.id === initialTemplateId) : undefined
+      const initialFood = initialFoodId ? foods.find((item) => item.id === initialFoodId) : undefined
+      setDraftEntries(initialTemplate ? [{ draftId: crypto.randomUUID(), meal: defaultMeal, line: templateMealLine(initialTemplate), source: 'template' }]
+        : initialFood ? [{ draftId: crypto.randomUUID(), meal: defaultMeal, line: customFoodMealLine(initialFood), source: 'mine' }]
+          : [])
+    }
+    wasOpen.current = open
+  }, [open, defaultMeal, initialTab, initialTemplateId, initialFoodId, templates, foods])
 
   useEffect(() => {
     if (!open) return
-    setTab(initialTab)
-    setMeal(defaultMeal)
-    setManual(blankManual())
-    setDuplicate(undefined)
-    if (initialTemplateId) {
-      const template = templates.find((item) => item.id === initialTemplateId)
-      if (template) { setSelection({ kind: 'template', id: template.id }); setMeal(template.meal) }
-    } else setSelection(undefined)
-  }, [open, defaultMeal, initialTab, initialTemplateId, templates])
+    scrollY.current = window.scrollY
+    trigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const body = document.body
+    const previous = { position: body.style.position, top: body.style.top, left: body.style.left, right: body.style.right, width: body.style.width, overflow: body.style.overflow }
+    body.style.position = 'fixed'
+    body.style.top = `-${scrollY.current}px`
+    body.style.left = '0'
+    body.style.right = '0'
+    body.style.width = '100%'
+    body.style.overflow = 'hidden'
+    return () => {
+      Object.assign(body.style, previous)
+      window.scrollTo({ top: scrollY.current, behavior: 'auto' })
+      window.requestAnimationFrame(() => trigger.current?.focus({ preventScroll: true }))
+    }
+  }, [open])
 
-  if (!open) return null
-  const selectedIngredient = selection?.kind === 'common' ? ingredients.find((item) => item.id === selection.id) : undefined
-  const selectedTemplate = selection?.kind === 'template' ? templates.find((item) => item.id === selection.id) : undefined
-  const selectedFood = selection?.kind === 'mine' ? foods.find((item) => item.id === selection.id) : undefined
-  const selectedIngredientAmount = selection?.kind === 'common' ? selection.amount : 0
-  const selectedFoodAmount = selection?.kind === 'mine' ? selection.amount : 0
+  useEffect(() => {
+    if (!open) return
+    const guardId = `food-sheet-${crypto.randomUUID()}`
+    const pushGuard = () => {
+      window.history.pushState({ ...window.history.state, foodSheetGuard: guardId }, '', window.location.href)
+      historyGuard.current = true
+    }
+    const onPopState = () => {
+      historyGuard.current = false
+      if (draftEntriesRef.current.length) {
+        setConfirmDiscard(true)
+        pushGuard()
+      } else onCloseRef.current()
+    }
+    pushGuard()
+    window.addEventListener('popstate', onPopState)
+    return () => {
+      window.removeEventListener('popstate', onPopState)
+      if (historyGuard.current) {
+        historyGuard.current = false
+        window.history.back()
+      }
+    }
+  }, [open])
 
-  const finish = (next: MealDetails, target: MealKey, name: string) => {
-    onApply(next, target, `已加入${mealLabels[target]}：${name}`)
-    onClose()
+  const requestClose = () => {
+    if (draftEntries.length) setConfirmDiscard(true)
+    else onClose()
   }
-  const addTemplate = (template: FoodTemplate, allowDuplicate = false) => {
-    if (!allowDuplicate && findFoodTemplate(details, meal, template.id)) { setDuplicate(template); return }
-    const result = addFoodTemplate(details, template, meal)
-    finish(result.details, meal, template.name)
+
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      requestClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  })
+
+  const addDraft = (line: MealLine, source: DraftFoodEntry['source'], targetMeal = meal) => {
+    setDraftEntries((entries) => mergeDraftFoodEntry(entries, {
+      draftId: crypto.randomUUID(), meal: targetMeal, line, source
+    }))
+    setConfirmDiscard(false)
+    setSaveError('')
   }
+
   const submitManual = () => {
     if (!manual.name.trim() || manual.kcal === '') return
-    const line = manualMealLine({
+    addDraft(manualMealLine({
       name: manual.name,
       kcal: Number(manual.kcal), proteinG: Number(manual.proteinG || 0),
       carbsG: manual.carbsG === '' ? undefined : Number(manual.carbsG),
@@ -72,38 +143,79 @@ export function FoodAddSheet({ open, defaultMeal, initialTab = 'common', initial
       fiberG: manual.fiberG === '' ? undefined : Number(manual.fiberG),
       sodiumMg: manual.sodiumMg === '' ? undefined : Number(manual.sodiumMg),
       portionLabel: manual.portionLabel
-    })
-    finish(addMealLine(details, meal, line), meal, line.label)
+    }), 'manual')
+    setManual(blankManual())
   }
 
-  return <div className="food-sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
+  const draftDetails = useMemo(() => ({
+    breakfast: draftEntries.filter((entry) => entry.meal === 'breakfast').map((entry) => entry.line),
+    lunch: draftEntries.filter((entry) => entry.meal === 'lunch').map((entry) => entry.line),
+    dinner: draftEntries.filter((entry) => entry.meal === 'dinner').map((entry) => entry.line),
+    evening: draftEntries.filter((entry) => entry.meal === 'evening').map((entry) => entry.line),
+    ramen: { ...details.ramen, enabled: false }
+  }), [draftEntries, details.ramen])
+  const draftTotals = mealTotals(draftDetails)
+  const normalizedQuery = query.trim().toLocaleLowerCase('zh-TW')
+  const matches = (value: string) => value.toLocaleLowerCase('zh-TW').includes(normalizedQuery)
+  const searchResults = normalizedQuery ? [
+    ...recent.filter((item) => matches(item.line.label)).map((item) => ({ id: `recent-${item.id}`, label: item.line.label, note: `最近使用 · ${item.line.amount} ${item.line.portionLabel ?? item.line.unit}`, add: () => addDraft(cloneForDraft(item.line, 'recent'), 'manual') })),
+    ...ingredients.filter((item) => matches(item.line.label)).map((item) => ({ id: `common-${item.id}`, label: item.line.label, note: `常用 · ${item.defaultAmount} ${item.line.unit}`, add: () => addDraft(ingredientMealLine(item, item.defaultAmount), 'common') })),
+    ...templates.filter((item) => matches(`${item.name} ${item.description}`)).map((item) => ({ id: `template-${item.id}`, label: item.name, note: `套餐 · ${Math.round(item.kcal)} kcal`, add: () => addDraft(templateMealLine(item), 'template') })),
+    ...foods.filter((item) => matches(item.name)).map((item) => ({ id: `mine-${item.id}`, label: item.name, note: `我的食物 · ${Math.round(item.kcal)} kcal`, add: () => addDraft(customFoodMealLine(item), 'mine') }))
+  ] : []
+
+  const saveDraft = async () => {
+    if (!draftEntries.length || saving) return
+    setSaving(true)
+    setSaveError('')
+    const meals = [...new Set(draftEntries.map((entry) => entry.meal))]
+    const targetMeal = meals.length === 1 ? meals[0] : defaultMeal
+    const prefix = meals.length === 1 ? `已加入${mealLabels[targetMeal]}：` : '已加入：'
+    try {
+      await commitDraftEntries(details, draftEntries, (next) => onApply(next, targetMeal, `${prefix}${draftEntries.length}項 · ${draftTotals.kcal} kcal`))
+      setDraftEntries([])
+      onClose()
+    } catch {
+      setSaveError('儲存失敗，草稿仍保留。請稍後再試。')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!open) return null
+  const dateTitle = date < localDateString()
+    ? `補記 ${new Intl.DateTimeFormat('zh-TW', { month: 'numeric', day: 'numeric' }).format(parseLocalDate(date))}${mealLabels[defaultMeal]}`
+    : `加入 ${mealLabels[defaultMeal]}`
+
+  const pickerButton = (id: string, label: string, note: string, action: () => void) => <button type="button" key={id} onClick={action}><span><strong>{label}</strong><small>{note}</small></span><Plus aria-hidden="true" /></button>
+
+  return <div className="food-sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose() }}>
     <section className="food-sheet" role="dialog" aria-modal="true" aria-labelledby="food-sheet-title">
-      <header><div><span>加入 {mealLabels[defaultMeal]}</span><h2 id="food-sheet-title">新增食物</h2></div><button type="button" className="icon-button" aria-label="關閉新增食物" onClick={onClose}><X /></button></header>
-      <nav className="food-sheet-tabs" aria-label="新增食物方式">{(Object.keys(tabLabels) as SheetTab[]).map((key) => <button type="button" className={tab === key ? 'active' : ''} key={key} onClick={() => { setTab(key); setSelection(undefined); setDuplicate(undefined) }}>{tabLabels[key]}</button>)}</nav>
+      <header><div><span>{dateTitle}</span><h2 id="food-sheet-title">批次新增食物</h2></div><button type="button" className="icon-button" aria-label="關閉新增食物" onClick={requestClose}><X /></button></header>
+      <div className="food-sheet-tools">
+        <label className="food-search"><Search aria-hidden="true" /><input aria-label="搜尋食物" placeholder="搜尋常用、套餐、我的食物…" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
+        <label className="sheet-meal-select">加入餐次<select value={meal} onChange={(event) => setMeal(event.target.value as MealKey)}>{mealKeys.map((key) => <option value={key} key={key}>{mealLabels[key]}</option>)}</select></label>
+      </div>
+      {!normalizedQuery && <nav className="food-sheet-tabs" aria-label="新增食物方式">{(Object.keys(tabLabels) as SheetTab[]).map((key) => <button type="button" className={tab === key ? 'active' : ''} key={key} onClick={() => setTab(key)}>{tabLabels[key]}</button>)}</nav>}
       <div className="food-sheet-content">
-        {tab === 'common' && <div className="food-picker-grid">{ingredients.map((item) => <button type="button" className={selectedIngredient?.id === item.id ? 'selected' : ''} key={item.id} onClick={() => setSelection({ kind: 'common', id: item.id, amount: item.defaultAmount })}><strong>{item.line.label}</strong><small>建議 {item.defaultAmount} {item.line.unit}</small></button>)}</div>}
-        {tab === 'templates' && <div className="food-picker-list">{templates.map((template) => <button type="button" className={selectedTemplate?.id === template.id ? 'selected' : ''} key={template.id} onClick={() => { setSelection({ kind: 'template', id: template.id }); setMeal(template.meal); setDuplicate(undefined) }}><span><strong>{template.name}</strong><small>{template.description}</small></span><b>{Math.round(template.kcal)} kcal<br />P {Math.round(template.proteinG)} g</b></button>)}</div>}
-        {tab === 'mine' && <div className="food-picker-list">{foods.length === 0 ? <p className="empty">尚未建立我的食物，可到頁面底部建立。</p> : foods.map((food) => <button type="button" className={selectedFood?.id === food.id ? 'selected' : ''} key={food.id} onClick={() => setSelection({ kind: 'mine', id: food.id, amount: food.defaultAmount })}><span><strong>{food.name}</strong><small>{food.basis === '100g' ? '每 100g' : '每份'}</small></span><b>{Math.round(food.kcal)} kcal<br />P {Math.round(food.proteinG)} g</b></button>)}</div>}
-        {tab === 'manual' && <div className="manual-food-form">
+        {normalizedQuery && <div className="food-picker-list search-results">{searchResults.length ? searchResults.map((item) => pickerButton(item.id, item.label, item.note, item.add)) : <p className="empty">找不到符合的食物。</p>}</div>}
+        {!normalizedQuery && tab === 'recent' && <div className="food-picker-list">{recent.length ? recent.map((item) => pickerButton(item.id, item.line.label, `${item.line.amount} ${item.line.portionLabel ?? item.line.unit} · ${item.lastUsedDate.slice(5).replace('-', '/')}`, () => addDraft(cloneForDraft(item.line, 'recent'), 'manual'))) : <p className="empty">最近 14 天還沒有可重用的食物。</p>}</div>}
+        {!normalizedQuery && tab === 'common' && <div className="food-picker-grid">{ingredients.map((item) => <button type="button" key={item.id} onClick={() => addDraft(ingredientMealLine(item, item.defaultAmount), 'common')}><span><strong>{item.line.label}</strong><small>建議 {item.defaultAmount} {item.line.unit}</small></span><Plus aria-hidden="true" /></button>)}</div>}
+        {!normalizedQuery && tab === 'templates' && <div className="food-picker-list">{templates.map((template) => pickerButton(template.id, template.name, `${template.description} · ${Math.round(template.kcal)} kcal`, () => addDraft(templateMealLine(template), 'template')))}</div>}
+        {!normalizedQuery && tab === 'mine' && <div className="food-picker-list">{foods.length ? foods.map((food) => pickerButton(food.id, food.name, `${food.basis === '100g' ? '每 100g' : '每份'} · ${Math.round(food.kcal)} kcal`, () => addDraft(customFoodMealLine(food), 'mine'))) : <p className="empty">尚未建立我的食物。</p>}</div>}
+        {!normalizedQuery && tab === 'manual' && <div className="manual-food-form">
           <label className="wide">食物／餐點名稱 *<input autoFocus placeholder="例如：公司午餐" value={manual.name} onChange={(event) => setManual({ ...manual, name: event.target.value })} /></label>
           <label>熱量 kcal *<input type="number" min="0" inputMode="decimal" value={manual.kcal} onChange={(event) => setManual({ ...manual, kcal: event.target.value })} /></label>
           <label>蛋白質 g<input type="number" min="0" inputMode="decimal" value={manual.proteinG} onChange={(event) => setManual({ ...manual, proteinG: event.target.value })} /></label>
           {([['carbsG', '碳水 g'], ['fatG', '脂肪 g'], ['fiberG', '纖維 g'], ['sodiumMg', '鈉 mg']] as const).map(([key, label]) => <label key={key}>{label}（選填）<input type="number" min="0" inputMode="decimal" value={manual[key]} onChange={(event) => setManual({ ...manual, [key]: event.target.value })} /></label>)}
           <label className="wide">份量名稱<input placeholder="1份" value={manual.portionLabel} onChange={(event) => setManual({ ...manual, portionLabel: event.target.value })} /></label>
+          <button type="button" className="primary manual-add-draft" disabled={!manual.name.trim() || manual.kcal === ''} onClick={submitManual}><Plus />加入本次草稿</button>
         </div>}
+        {draftEntries.length > 0 && <section className="draft-entry-list" aria-label="本次新增草稿"><h3>本次草稿</h3>{draftEntries.map((entry) => <div key={entry.draftId}><span><strong>{entry.line.label}</strong><small>{mealLabels[entry.meal]}</small></span><label><input aria-label={`${entry.line.label}草稿份量`} type="number" min="0" step={entry.line.unit === '份' || entry.line.unit === '顆' ? 1 : 5} value={entry.line.amount} onChange={(event) => setDraftEntries((items) => items.map((item) => item.draftId === entry.draftId ? { ...item, line: { ...item.line, amount: Math.max(0, Number(event.target.value)) } } : item))} /><i>{entry.line.portionLabel ?? entry.line.unit}</i></label><button type="button" aria-label={`移除${entry.line.label}`} onClick={() => setDraftEntries((items) => items.filter((item) => item.draftId !== entry.draftId))}><Trash2 /></button></div>)}</section>}
       </div>
 
-      {duplicate ? <div className="duplicate-template-prompt" role="alertdialog"><strong>這個套餐已經加入{mealLabels[meal]}，要再加一份嗎？</strong><div><button type="button" onClick={() => setDuplicate(undefined)}>取消</button><button type="button" onClick={() => { setDuplicate(undefined); onEditExisting(meal); onClose() }}>編輯原有份量</button><button type="button" className="primary" onClick={() => addTemplate(duplicate, true)}>再加一份</button></div></div> : <footer>
-        <label>加入餐次<select value={meal} onChange={(event) => setMeal(event.target.value as MealKey)}>{mealKeys.map((key) => <option value={key} key={key}>{mealLabels[key]}</option>)}</select></label>
-        {selectedIngredient && <label>份量<span className="sheet-amount"><input type="number" min="0" inputMode="decimal" value={selectedIngredientAmount} onChange={(event) => setSelection({ kind: 'common', id: selectedIngredient.id, amount: Number(event.target.value) })} /><i>{selectedIngredient.line.unit}</i></span></label>}
-        {selectedFood && <label>份量<span className="sheet-amount"><input type="number" min="0" inputMode="decimal" value={selectedFoodAmount} onChange={(event) => setSelection({ kind: 'mine', id: selectedFood.id, amount: Number(event.target.value) })} /><i>{selectedFood.basis === '100g' ? 'g' : '份'}</i></span></label>}
-        <button type="button" className="primary sheet-submit" disabled={tab === 'common' ? !selectedIngredient : tab === 'templates' ? !selectedTemplate : tab === 'mine' ? !selectedFood : !manual.name.trim() || manual.kcal === ''} onClick={() => {
-          if (selectedIngredient && selection?.kind === 'common') finish(addMealLine(details, meal, ingredientMealLine(selectedIngredient, selection.amount)), meal, selectedIngredient.line.label)
-          else if (selectedTemplate) addTemplate(selectedTemplate)
-          else if (selectedFood && selection?.kind === 'mine') finish(addMealLine(details, meal, customFoodMealLine(selectedFood, selection.amount)), meal, selectedFood.name)
-          else if (tab === 'manual') submitManual()
-        }}><Plus />加入{mealLabels[meal]}</button>
-      </footer>}
+      {confirmDiscard && <div className="discard-draft-prompt" role="alertdialog" aria-live="assertive"><strong>尚有 {draftEntries.length} 項未儲存</strong><div><button type="button" onClick={() => setConfirmDiscard(false)}>繼續編輯</button><button type="button" className="danger-text" onClick={() => { setDraftEntries([]); onClose() }}>捨棄本次輸入</button></div></div>}
+      <footer className="draft-save-bar"><div><span>本次新增 {draftEntries.length} 項</span><strong>{draftTotals.kcal} kcal · 蛋白質 {draftTotals.protein.toFixed(1)} g</strong>{saveError && <small role="alert">{saveError}</small>}</div><div><button type="button" onClick={requestClose}>取消</button><button type="button" className="primary" disabled={!draftEntries.length || saving} onClick={() => void saveDraft()}>{saving ? '儲存中…' : `儲存 ${draftEntries.length} 項`}</button></div></footer>
     </section>
   </div>
 }

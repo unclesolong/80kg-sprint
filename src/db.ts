@@ -1,6 +1,6 @@
 import { openDB } from 'idb'
 import type { ChallengeSettings, CustomFood, DailyLog } from './types'
-import { migrateLog, migrateSettings } from './defaults'
+import { migrateSettings } from './defaults'
 
 const dbPromise = openDB('80kg-sprint', 1, {
   upgrade(db) {
@@ -17,7 +17,9 @@ export const loadAll = async () => {
     db.getAll('logs') as Promise<DailyLog[]>,
     db.getAll('foods') as Promise<CustomFood[]>
   ])
-  return { settings: migrateSettings(settings), logs: logs.map(migrateLog), foods }
+  // Loading must be observational: historical records stay byte-for-byte
+  // serializable until the user explicitly edits or imports data.
+  return { settings: migrateSettings(settings), logs, foods }
 }
 
 export const saveSettings = async (settings: ChallengeSettings) => (await dbPromise).put('settings', settings, 'challenge')

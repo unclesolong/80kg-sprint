@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { defaultSettings, emptyLog } from './defaults'
-import { buildCsv, buildWeeklySummary } from './export'
+import { buildCsv, buildWeeklySummary, makeBackup } from './export'
 
 const activityLog = {
   ...emptyLog('2026-08-01'),
@@ -38,5 +38,12 @@ describe('活動匯出', () => {
     expect(summary).toContain('日結狀態：尚未結算')
     expect(summary).toContain('最終推估赤字：—')
     expect(summary).toContain('已結算天數：0 天')
+  })
+
+  it('建立備份不改寫既有歷史 log 的序列化內容', () => {
+    const legacy = { ...emptyLog('2026-08-01'), mealDetails: undefined, intakeKcal: 1680, proteinG: 132 }
+    const before = JSON.stringify(legacy)
+    const backup = makeBackup(defaultSettings, [legacy], [])
+    expect(JSON.stringify(backup.logs[0])).toBe(before)
   })
 })

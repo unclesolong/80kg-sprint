@@ -1,4 +1,4 @@
-import { activityTotals, average, dailyDeficit, effectiveActiveKcal, estimatedTDEE, fatEquivalentKg, finalizedCumulativeDeficit, finalizedDeficit, linearRegressionProjection, movingAverage } from './calculations'
+import { activityTotals, average, dailyDeficit, effectiveActiveKcal, estimatedTDEE, fatEquivalentKg, finalizedCumulativeDeficit, finalizedDeficit, movingAverage, weightPrediction } from './calculations'
 import type { BackupPayload, ChallengeSettings, CustomFood, DailyLog } from './types'
 
 export const makeBackup = (settings: ChallengeSettings, logs: DailyLog[], foods: CustomFood[]): BackupPayload => ({
@@ -26,7 +26,7 @@ export const buildWeeklySummary = (settings: ChallengeSettings, logs: DailyLog[]
   const ordered = [...logs].filter((log) => log.date >= settings.startDate && log.date <= settings.finalWeighInDate).sort((a, b) => a.date.localeCompare(b.date))
   const morning = ordered.filter((log) => log.weightCondition === 'morning_fasted' && log.weightKg != null)
   const trend = movingAverage(morning.map((log) => log.weightKg), 3).at(-1)
-  const prediction = linearRegressionProjection(morning.map((log) => ({ date: log.date, weight: log.weightKg! })), settings.finalWeighInDate)
+  const prediction = weightPrediction(morning.map((log) => ({ date: log.date, weight: log.weightKg! })), settings.finalWeighInDate)
   const finalized = ordered.filter((log) => log.dayFinalized)
   const cumulative = finalizedCumulativeDeficit(ordered, settings)
   const records = ordered.map((log) => {
@@ -61,7 +61,7 @@ Bristol型態：${show(log.bristolType)}
 高鹽餐：${log.highSaltMeal ? '是' : '否'}
 疲勞：${show(log.fatigueLevel)}
 飢餓：${show(log.hungerLevel)}
-小腿緊繃／疼痛：${show(log.lowerLegTightness, '/5')}
+下肢／足底不適：${show(log.lowerLegTightness, '/5')}
 疼痛備註：${log.painNotes || '—'}
 備註：${log.notes || '—'}`
   }).join('\n\n')
@@ -87,14 +87,14 @@ ${records || '尚無紀錄'}
 平均最終赤字：${show(average(finalized.map(dailyDeficit)), ' kcal')}
 累積最終赤字：${show(cumulative, ' kcal')}
 脂肪等值估算：${show(fatEquivalentKg(cumulative), ' kg')}
-最終日預測體重：${prediction == null ? '資料不足（需至少3筆晨間體重）' : `${show(prediction, ' kg')}（約 ±0.5 kg 水分波動，預測不是保證）`}
+最終日預測體重：${prediction.confidence === 'insufficient' ? `資料不足（目前 ${prediction.sampleCount} 筆，需至少 7 筆晨間體重）` : `${prediction.value!.toFixed(1)} kg（${prediction.confidence === 'low' ? '低信心；' : '趨勢估算；'}約 ±0.5 kg 水分波動，預測不是保證）`}
 資料完整率：${completeness}%（以挑戰開始至 ${reportEnd} 的預期天數計算）
 
 分析提醒：活動合計只加上標記為「尚未包含」的運動；已包含於 Apple Watch／摘要的明細不重複計算。只有按下「完成今日結算」的日期會納入平均與累積赤字；日間資料不當作最終結果。此摘要是紀錄與估算，不是醫療診斷。`
 }
 
 export const buildCsv = (logs: DailyLog[]): string => {
-  const headers = ['日期', '已結算', '結算時間', '需重新結算', '最終赤字kcal', '體重kg', '量測條件', '腰圍cm', '活動摘要kcal', '待同步運動kcal', '目前活動合計kcal', '靜態kcal', '攝取kcal', '蛋白質g', '碳水g', '脂肪g', '纖維g', '鈉mg', '白開水ml', '步數', '距離km', '運動分鐘', '運動明細數', '運動明細JSON', '平均心率', '靜息心率', 'HRVms', '睡眠開始', '睡眠結束', '睡眠小時', '排便', 'Bristol', '疲勞', '飢餓', '小腿緊繃疼痛0至5', '疼痛備註', '備註']
+  const headers = ['日期', '已結算', '結算時間', '需重新結算', '最終赤字kcal', '體重kg', '量測條件', '腰圍cm', '活動摘要kcal', '待同步運動kcal', '目前活動合計kcal', '靜態kcal', '攝取kcal', '蛋白質g', '碳水g', '脂肪g', '纖維g', '鈉mg', '白開水ml', '步數', '距離km', '運動分鐘', '運動明細數', '運動明細JSON', '平均心率', '靜息心率', 'HRVms', '睡眠開始', '睡眠結束', '睡眠小時', '排便', 'Bristol', '疲勞', '飢餓', '下肢足底不適0至5', '疼痛備註', '備註']
   const escape = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`
   const rows = [...logs].sort((a, b) => a.date.localeCompare(b.date)).map((log) => {
     const activity = activityTotals(log)

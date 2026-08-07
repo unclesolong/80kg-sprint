@@ -17,7 +17,7 @@ export const buildAdvice = (current: DailyLog, logs: DailyLog[], settings: Chall
   if ((current.lowerLegTightness ?? 0) >= 3) {
     advice.push({ level: 'warn', text: '下肢緊繃／疼痛較高，今天改走路或休息，不追 660 kcal；活動可暫降至約 500–550 kcal。' })
   } else if (current.lowerLegTightness === 2) {
-    advice.push({ level: 'near', text: '小腿已有緊繃，今天不補跑；若走路自然且沒有加劇，可做 10–20 分鐘輕鬆走路。' })
+    advice.push({ level: 'near', text: '下肢／足底已有不適，今天不補跑；若走路自然且沒有加劇，可做 10–20 分鐘輕鬆走路。' })
   } else if (legIncreasing) {
     advice.push({ level: 'near', text: '下肢緊繃已連續上升，今天不要提高運動量，先觀察恢復。' })
   } else if ((current.sleepHours ?? settings.sleepMinimumHours) < settings.sleepMinimumHours || (current.fatigueLevel ?? 1) >= 4) {

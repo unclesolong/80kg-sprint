@@ -39,6 +39,43 @@ export const addMealLine = (details: MealDetails, meal: MealKey, line: MealLine)
   return next
 }
 
+export interface DraftFoodEntry {
+  draftId: string
+  meal: MealKey
+  line: MealLine
+  source: 'common' | 'template' | 'mine' | 'manual'
+}
+
+/** Adds a whole draft in one immutable clone without touching existing rows. */
+export const addMealLines = (
+  details: MealDetails,
+  entries: Array<{ meal: MealKey; line: MealLine }>
+): MealDetails => {
+  const next = cloneMealDetails(details)
+  for (const entry of entries) next[entry.meal].push({ ...entry.line })
+  return next
+}
+
+/** Repeated taps on the same common ingredient increase its amount in-place. */
+export const mergeDraftFoodEntry = (entries: DraftFoodEntry[], entry: DraftFoodEntry): DraftFoodEntry[] => {
+  if (entry.source !== 'common') return [...entries, entry]
+  const index = entries.findIndex((item) => item.source === 'common' && item.meal === entry.meal && item.line.label === entry.line.label)
+  if (index < 0) return [...entries, entry]
+  return entries.map((item, itemIndex) => itemIndex === index
+    ? { ...item, line: { ...item.line, amount: item.line.amount + entry.line.amount } }
+    : item)
+}
+
+export const commitDraftEntries = async (
+  details: MealDetails,
+  entries: DraftFoodEntry[],
+  onApply: (next: MealDetails) => void | Promise<void>
+): Promise<MealDetails> => {
+  const next = addMealLines(details, entries)
+  await onApply(next)
+  return next
+}
+
 export const updateMealLineAmount = (details: MealDetails, meal: MealKey, key: string, amount: number): MealDetails => {
   const next = cloneMealDetails(details)
   next[meal] = next[meal].map((line) => line.key === key ? { ...line, amount: Math.max(0, amount) } : line)
@@ -149,10 +186,10 @@ export const customFoodMealLine = (food: CustomFood, amount = food.defaultAmount
     portionLabel: food.basis === 'serving' ? '份' : undefined,
     kcalPerUnit: food.kcal / divider,
     proteinPerUnit: food.proteinG / divider,
-    carbsPerUnit: (food.carbsG ?? 0) / divider,
-    fatPerUnit: (food.fatG ?? 0) / divider,
-    fiberPerUnit: (food.fiberG ?? 0) / divider,
-    sodiumPerUnit: (food.sodiumMg ?? 0) / divider
+    carbsPerUnit: food.carbsG == null ? undefined : food.carbsG / divider,
+    fatPerUnit: food.fatG == null ? undefined : food.fatG / divider,
+    fiberPerUnit: food.fiberG == null ? undefined : food.fiberG / divider,
+    sodiumPerUnit: food.sodiumMg == null ? undefined : food.sodiumMg / divider
   }
 }
 
@@ -175,11 +212,40 @@ export const manualMealLine = (input: ManualMealInput): MealLine => ({
   portionLabel: input.portionLabel?.trim() || '份',
   kcalPerUnit: input.kcal,
   proteinPerUnit: input.proteinG,
-  carbsPerUnit: input.carbsG ?? 0,
-  fatPerUnit: input.fatG ?? 0,
-  fiberPerUnit: input.fiberG ?? 0,
-  sodiumPerUnit: input.sodiumMg ?? 0
+  carbsPerUnit: input.carbsG,
+  fatPerUnit: input.fatG,
+  fiberPerUnit: input.fiberG,
+  sodiumPerUnit: input.sodiumMg
 })
+
+export interface RecentFoodItem {
+  id: string
+  line: MealLine
+  lastUsedDate: string
+}
+
+/** Derives a non-persistent recent-food list from the preceding 14 calendar days. */
+export const recentFoodItems = (logs: DailyLog[], throughDate: string, limit = 12): RecentFoodItem[] => {
+  const through = new Date(`${throughDate}T12:00:00`).getTime()
+  const earliest = through - 13 * 86_400_000
+  const seen = new Set<string>()
+  const result: RecentFoodItem[] = []
+  for (const log of [...logs].filter((item) => {
+    const time = new Date(`${item.date}T12:00:00`).getTime()
+    return time >= earliest && time <= through && item.mealDetails
+  }).sort((a, b) => b.date.localeCompare(a.date))) {
+    for (const meal of mealKeys) {
+      for (const line of [...log.mealDetails![meal]].reverse()) {
+        const identity = line.label.trim().toLocaleLowerCase('zh-TW')
+        if (line.amount <= 0 || seen.has(identity)) continue
+        seen.add(identity)
+        result.push({ id: `${log.date}-${meal}-${line.key}`, line: { ...line }, lastUsedDate: log.date })
+        if (result.length >= limit) return result
+      }
+    }
+  }
+  return result
+}
 
 export const hasMealContent = (details?: MealDetails): boolean => Boolean(details && (
   details.ramen.enabled || mealKeys.some((meal) => details[meal].some((line) => line.amount > 0))
@@ -199,10 +265,10 @@ export const ensureMealDetails = (log: Pick<DailyLog, 'id' | 'mealDetails' | 'in
     portionLabel: '份',
     kcalPerUnit: log.intakeKcal ?? 0,
     proteinPerUnit: log.proteinG ?? 0,
-    carbsPerUnit: log.carbsG ?? 0,
-    fatPerUnit: log.fatG ?? 0,
-    fiberPerUnit: log.fiberG ?? 0,
-    sodiumPerUnit: log.sodiumMg ?? 0
+    carbsPerUnit: log.carbsG,
+    fatPerUnit: log.fatG,
+    fiberPerUnit: log.fiberG,
+    sodiumPerUnit: log.sodiumMg
   })
   return details
 }

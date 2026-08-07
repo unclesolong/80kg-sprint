@@ -5,7 +5,8 @@ import { localDateString } from './calculations'
 import { clearAllData, deleteFood, loadAll, replaceAllData, saveFood, saveLog, saveSettings } from './db'
 import { defaultSettings, emptyLog, migrateLog, migrateSettings } from './defaults'
 import { applyLogPatch } from './logUpdates'
-import type { ChallengeSettings, CustomFood, DailyLog, RecordStage } from './types'
+import type { ChallengeSettings, CustomFood, DailyLog, FoodTemplate, RecordStage } from './types'
+import type { MealKey } from './mealOperations'
 import { Onboarding } from './components/Onboarding'
 import { TodayPage } from './pages/TodayPage'
 import { RecordPage } from './pages/RecordPage'
@@ -25,6 +26,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('today')
   const [selectedDate, setSelectedDate] = useState(today)
   const [recordStage, setRecordStage] = useState<RecordStage>('morning')
+  const [recordFoodIntent, setRecordFoodIntent] = useState<{ meal: MealKey; templateId: string }>()
   const [online, setOnline] = useState(navigator.onLine)
   const [installHint, setInstallHint] = useState(() => localStorage.getItem('80kg-install-hint-dismissed') !== '1')
   const [updateReady, setUpdateReady] = useState(false)
@@ -56,10 +58,12 @@ export default function App() {
     const nextLogs = [...logsRef.current.filter((item) => item.id !== date), next].sort((a, b) => a.date.localeCompare(b.date))
     logsRef.current = nextLogs
     setLogs(nextLogs)
-    void saveLog(next).then(() => {
+    return saveLog(next).then(() => {
       if (saveSequence.current === sequence) setRecordSaveState('saved')
+      return true
     }).catch(() => {
       if (saveSequence.current === sequence) setRecordSaveState('error')
+      return false
     })
   }
   const updateSettings = (next: ChallengeSettings) => { setSettings(next); void saveSettings(next) }
@@ -76,8 +80,8 @@ export default function App() {
     {updateReady && <button className="update-banner" onClick={() => void applyUpdate?.(true)}>有新版本，點此更新</button>}
     {installHint && <div className="install-hint"><span>在 iPhone Safari 按分享，再選擇「加入主畫面」。</span><button aria-label="關閉安裝提示" onClick={() => { localStorage.setItem('80kg-install-hint-dismissed', '1'); setInstallHint(false) }}>×</button></div>}
     <main>
-      {tab === 'today' && <TodayPage today={today} log={todayLog} logs={logs} settings={settings} onQuickAdd={(patch) => updateLog(today, patch)} onOpenRecord={(stage) => { setRecordStage(stage); setSelectedDate(today); setTab('record') }} />}
-      {tab === 'record' && <RecordPage date={selectedDate} log={currentLog} logs={logs} foods={foods} settings={settings} initialStage={recordStage} saveState={recordSaveState} onDate={setSelectedDate} onChange={(patch) => updateLog(selectedDate, patch)} onSaveFood={addFood} onDeleteFood={removeFood} />}
+      {tab === 'today' && <TodayPage today={today} log={todayLog} logs={logs} settings={settings} onQuickAdd={(patch) => updateLog(today, patch)} onOpenRecord={(stage) => { setRecordStage(stage); setSelectedDate(today); setTab('record') }} onOpenFoodTemplate={(template: FoodTemplate) => { setRecordStage('food'); setSelectedDate(today); setRecordFoodIntent({ meal: template.meal, templateId: template.id }); setTab('record') }} />}
+      {tab === 'record' && <RecordPage date={selectedDate} log={currentLog} logs={logs} foods={foods} settings={settings} initialStage={recordStage} initialFoodIntent={recordFoodIntent} saveState={recordSaveState} onDate={setSelectedDate} onChange={(patch) => updateLog(selectedDate, patch)} onSaveFood={addFood} onDeleteFood={removeFood} onFoodIntentConsumed={() => setRecordFoodIntent(undefined)} />}
       {tab === 'trends' && <Suspense fallback={<div className="loading-inline">載入趨勢圖表…</div>}><TrendsPage logs={logs} settings={settings} /></Suspense>}
       {tab === 'settings' && <SettingsPage today={today} settings={settings} logs={logs} foods={foods} onSettings={updateSettings} onImport={importData} onClear={clearData} />}
     </main>

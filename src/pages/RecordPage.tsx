@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, Copy, Moon, Plus, Scale, Utensils } from 'lucide-react'
-import { dailyDeficit, effectiveActiveKcal, estimatedTDEE, parseLocalDate, sleepDurationHours } from '../calculations'
+import { dailyDeficit, effectiveActiveKcal, estimatedTDEE, nutritionCoverageDisplay, parseLocalDate, sleepDurationHours } from '../calculations'
 import type { ChallengeSettings, CustomFood, DailyLog, MealDetails, RecordStage, WorkoutEntry, WorkoutType } from '../types'
-import { addMealLine, customFoodMealLine, duplicateMealLine, ensureMealDetails, mealKeys, mealLabels, moveMealLine, nutritionPatch, removeMealLine, restoreMealLine, updateMealLineAmount, type MealKey, type RemovedMealLine } from '../mealOperations'
+import { duplicateMealLine, ensureMealDetails, mealKeys, mealLabels, moveMealLine, nutritionPatch, removeMealLine, restoreMealLine, updateMealLineAmount, type MealKey, type RemovedMealLine } from '../mealOperations'
 import { FoodAddSheet } from '../components/FoodAddSheet'
 import { MealCard } from '../components/MealCard'
 import { NumberField } from '../components/NumberField'
@@ -15,19 +15,22 @@ const SelectScale = ({ label, value, min = 1, max = 5, onChange }: { label: stri
 
 const workoutLabels: Record<WorkoutType, string> = { walk: '步行', slow_jog: '超慢跑', run: '跑步', strength: '重量訓練', cycling: '單車', other: '其他' }
 const blankWorkout = (): WorkoutEntry => ({ id: crypto.randomUUID(), type: 'walk', title: '步行', durationMinutes: 0, source: 'apple_watch', activityKcalMode: 'included_in_daily_total' })
-const blankFood = (): Omit<CustomFood, 'id'> => ({ name: '', basis: '100g', kcal: 0, proteinG: 0, carbsG: 0, fatG: 0, fiberG: 0, sodiumMg: 0, defaultAmount: 100 })
-export function RecordPage({ date, log, logs, foods, settings, initialStage, saveState, onDate, onChange, onSaveFood, onDeleteFood }: {
+const blankFood = (): Omit<CustomFood, 'id'> => ({ name: '', basis: '100g', kcal: 0, proteinG: 0, defaultAmount: 100 })
+const optionalFoodNutrients = new Set<keyof Omit<CustomFood, 'id'>>(['carbsG', 'fatG', 'fiberG', 'sodiumMg'])
+export function RecordPage({ date, log, logs, foods, settings, initialStage, initialFoodIntent, saveState, onDate, onChange, onSaveFood, onDeleteFood, onFoodIntentConsumed }: {
   date: string
   log: DailyLog
   logs: DailyLog[]
   foods: CustomFood[]
   settings: ChallengeSettings
   initialStage: RecordStage
+  initialFoodIntent?: { meal: MealKey; templateId: string }
   saveState: 'saved' | 'saving' | 'error'
   onDate: (date: string) => void
-  onChange: (patch: Partial<DailyLog>) => void
+  onChange: (patch: Partial<DailyLog>) => Promise<boolean>
   onSaveFood: (food: CustomFood) => void
   onDeleteFood: (id: string) => void
+  onFoodIntentConsumed: () => void
 }) {
   const [activeStage, setActiveStage] = useState<RecordStage>(initialStage)
   const [newFood, setNewFood] = useState<Omit<CustomFood, 'id'>>(blankFood)
@@ -36,7 +39,7 @@ export function RecordPage({ date, log, logs, foods, settings, initialStage, sav
   const [editingWorkoutId, setEditingWorkoutId] = useState<string>()
   const [showWorkoutForm, setShowWorkoutForm] = useState(false)
   const [copyMessage, setCopyMessage] = useState('')
-  const [foodSheet, setFoodSheet] = useState<{ meal: MealKey; tab?: 'common' | 'templates' | 'mine' | 'manual'; templateId?: string }>()
+  const [foodSheet, setFoodSheet] = useState<{ meal: MealKey; tab?: 'common' | 'templates' | 'mine' | 'manual'; templateId?: string; foodId?: string }>()
   const [expandedMeal, setExpandedMeal] = useState<MealKey>()
   const [deletedMealLine, setDeletedMealLine] = useState<{ removed: RemovedMealLine; details: MealDetails }>()
   const [justFinalized, setJustFinalized] = useState(false)
@@ -45,6 +48,13 @@ export function RecordPage({ date, log, logs, foods, settings, initialStage, sav
   const deleteTimer = useRef<number | undefined>(undefined)
 
   useEffect(() => setActiveStage(initialStage), [initialStage, date])
+  useEffect(() => {
+    if (!initialFoodIntent) return
+    setActiveStage('food')
+    setExpandedMeal(initialFoodIntent.meal)
+    setFoodSheet({ meal: initialFoodIntent.meal, tab: 'templates', templateId: initialFoodIntent.templateId })
+    onFoodIntentConsumed()
+  }, [initialFoodIntent, onFoodIntentConsumed])
   useEffect(() => { sleepTimesRef.current = { startedAt: log.sleepStartedAt, endedAt: log.sleepEndedAt } }, [log.sleepStartedAt, log.sleepEndedAt])
   useEffect(() => () => { if (finalizeTimer.current) window.clearTimeout(finalizeTimer.current); if (deleteTimer.current) window.clearTimeout(deleteTimer.current) }, [])
 
@@ -55,15 +65,21 @@ export function RecordPage({ date, log, logs, foods, settings, initialStage, sav
   const finalTdee = log.dayFinalized ? estimatedTDEE(log) : undefined
   const finalDeficit = log.dayFinalized ? dailyDeficit(log) : undefined
   const eveningMissing = [activityValue, log.restingKcal, log.exerciseMinutes, log.steps, log.hungerLevel, log.fatigueLevel, log.highSaltMeal].some((value) => value == null)
+  const nutritionRows = [
+    { label: '熱量', value: `${Math.round(log.intakeKcal ?? 0).toLocaleString('zh-TW')} kcal`, note: '完整' },
+    { label: '蛋白質', value: `${(log.proteinG ?? 0).toFixed(1)} g`, note: '完整' },
+    { label: '碳水', ...nutritionCoverageDisplay(details, 'carbs', log.carbsG) },
+    { label: '脂肪', ...nutritionCoverageDisplay(details, 'fat', log.fatG) },
+    { label: '纖維', ...nutritionCoverageDisplay(details, 'fiber', log.fiberG) },
+    { label: '鈉', ...nutritionCoverageDisplay(details, 'sodium', log.sodiumMg) }
+  ]
 
   const previousDate = parseLocalDate(date); previousDate.setDate(previousDate.getDate() - 1)
   const currentDate = parseLocalDate(date)
   const shortDate = (value: Date) => new Intl.DateTimeFormat('zh-TW', { month: 'numeric', day: 'numeric' }).format(value)
   const updateFood = (patch: Partial<DailyLog>) => onChange({ ...patch, foodUpdatedAt: new Date().toISOString() })
   const updateActivity = (patch: Partial<DailyLog>) => onChange({ ...patch, activityUpdatedAt: new Date().toISOString() })
-  const updateDetails = (next: MealDetails) => {
-    updateFood(nutritionPatch(next))
-  }
+  const updateDetails = (next: MealDetails) => updateFood(nutritionPatch(next))
   const cloneDetails = (source: MealDetails): MealDetails => ({
     breakfast: source.breakfast.map((line) => ({ ...line, key: `${line.key}-${crypto.randomUUID()}` })),
     lunch: source.lunch.map((line) => ({ ...line, key: `${line.key}-${crypto.randomUUID()}` })),
@@ -103,17 +119,12 @@ export function RecordPage({ date, log, logs, foods, settings, initialStage, sav
     onChange({ [key]: value || undefined, ...(sleepHours == null ? {} : { sleepHours }) })
   }
 
-  const addCustom = (food: CustomFood, meal: MealKey) => {
-    updateDetails(addMealLine(details, meal, customFoodMealLine(food)))
-    setExpandedMeal(meal)
-    showCopyMessage(`已加入${mealLabels[meal]}：${food.name}`)
-  }
   const saveFoodEntry = () => {
     if (!newFood.name.trim()) return
     onSaveFood({ ...newFood, name: newFood.name.trim(), id: editingFoodId ?? crypto.randomUUID() })
     setNewFood(blankFood()); setEditingFoodId(undefined)
   }
-  const editFood = (food: CustomFood) => { setEditingFoodId(food.id); setNewFood({ name: food.name, basis: food.basis, kcal: food.kcal, proteinG: food.proteinG, carbsG: food.carbsG ?? 0, fatG: food.fatG ?? 0, fiberG: food.fiberG ?? 0, sodiumMg: food.sodiumMg ?? 0, defaultAmount: food.defaultAmount }) }
+  const editFood = (food: CustomFood) => { setEditingFoodId(food.id); setNewFood({ name: food.name, basis: food.basis, kcal: food.kcal, proteinG: food.proteinG, carbsG: food.carbsG, fatG: food.fatG, fiberG: food.fiberG, sodiumMg: food.sodiumMg, defaultAmount: food.defaultAmount }) }
 
   const saveWorkout = () => {
     if (workoutDraft.durationMinutes <= 0 || (workoutDraft.activityKcalMode === 'add_to_daily_total' && workoutDraft.activeKcal == null)) return
@@ -170,14 +181,14 @@ export function RecordPage({ date, log, logs, foods, settings, initialStage, sav
         <NumberField label="今日白開水" value={log.waterMl} unit="ml" step={250} quick={[250, 500]} onChange={(waterMl) => onChange({ waterMl })} />
       </Section>
       <Section title="顯示進階欄位" open={false}>
-        <p className="fine-print estimate-note">營養素皆由餐點明細自動加總。</p><div className="nutrition-readonly"><div><span>碳水</span><strong>{Math.round(log.carbsG ?? 0)} g</strong></div><div><span>脂肪</span><strong>{Math.round(log.fatG ?? 0)} g</strong></div><div><span>纖維</span><strong>{Math.round(log.fiberG ?? 0)} g</strong></div><div><span>鈉</span><strong>{Math.round(log.sodiumMg ?? 0)} mg</strong></div></div>
+        <p className="fine-print estimate-note">營養素由餐點明細衍生；缺少標示欄位時會顯示涵蓋率，不把未知值當成真正的零。</p><div className="nutrition-readonly">{nutritionRows.map((row) => <div key={row.label}><span>{row.label}</span><strong>{row.value}</strong><small>{row.note}</small></div>)}</div>
         <details className="ramen panel-inner"><summary>泡麵雞胸版詳細比例</summary><label className="toggle-row"><span>今天有吃泡麵</span><input type="checkbox" checked={details.ramen.enabled} onChange={(event) => updateDetails({ ...details, ramen: { ...details.ramen, enabled: event.target.checked } })} /></label>{details.ramen.enabled && <><div className="compact-field-grid nutrition-fields"><NumberField label="包裝整份熱量" value={details.ramen.packageKcal} unit="kcal" onChange={(packageKcal) => updateDetails({ ...details, ramen: { ...details.ramen, packageKcal: packageKcal ?? 0 } })} /><NumberField label="包裝蛋白質" value={details.ramen.packageProteinG} unit="g" onChange={(packageProteinG) => updateDetails({ ...details, ramen: { ...details.ramen, packageProteinG } })} /><NumberField label="包裝碳水" value={details.ramen.packageCarbsG} unit="g" onChange={(packageCarbsG) => updateDetails({ ...details, ramen: { ...details.ramen, packageCarbsG } })} /><NumberField label="包裝脂肪" value={details.ramen.packageFatG} unit="g" onChange={(packageFatG) => updateDetails({ ...details, ramen: { ...details.ramen, packageFatG } })} /><NumberField label="包裝鈉" value={details.ramen.packageSodiumMg} unit="mg" onChange={(packageSodiumMg) => updateDetails({ ...details, ramen: { ...details.ramen, packageSodiumMg } })} /></div>{(['noodleRatio', 'seasoningRatio', 'oilRatio'] as const).map((key) => <label className="select-field" key={key}>{key === 'noodleRatio' ? '麵體比例' : key === 'seasoningRatio' ? '調味包比例' : '油包比例'}<select value={details.ramen[key]} onChange={(event) => updateDetails({ ...details, ramen: { ...details.ramen, [key]: Number(event.target.value) } })}><option value={0.5}>1/2</option><option value={2 / 3}>2/3</option><option value={1}>整份</option></select></label>)}<label className="toggle-row"><span>有喝湯</span><input type="checkbox" checked={details.ramen.drankSoup} onChange={(event) => updateDetails({ ...details, ramen: { ...details.ramen, drankSoup: event.target.checked } })} /></label><NumberField label="加雞胸肉" value={details.ramen.chickenG} unit="g" step={10} onChange={(chickenG) => updateDetails({ ...details, ramen: { ...details.ramen, chickenG: chickenG ?? 0 } })} /><NumberField label="加蔬菜" value={details.ramen.vegetablesG} unit="g" step={10} onChange={(vegetablesG) => updateDetails({ ...details, ramen: { ...details.ramen, vegetablesG: vegetablesG ?? 0 } })} /></>}</details>
         <label className="toggle-row"><span>已補充肌酸</span><input type="checkbox" checked={Boolean(log.creatineTaken)} onChange={(event) => onChange({ creatineTaken: event.target.checked })} /></label>
         <label className="select-field">晚餐完成時間<input type="time" value={log.dinnerFinishedAt ?? ''} onChange={(event) => updateFood({ dinnerFinishedAt: event.target.value })} /></label>
       </Section>
       <Section title="自訂食物資料庫" open={false}>
-        <div className="food-form"><input aria-label="食物名稱" placeholder="食物名稱" value={newFood.name} onChange={(event) => setNewFood({ ...newFood, name: event.target.value })} /><select aria-label="計算基準" value={newFood.basis} onChange={(event) => setNewFood({ ...newFood, basis: event.target.value as CustomFood['basis'] })}><option value="100g">每100g</option><option value="serving">每份</option></select>{([['kcal', '熱量 kcal'], ['proteinG', '蛋白質 g'], ['carbsG', '碳水 g'], ['fatG', '脂肪 g'], ['fiberG', '纖維 g'], ['sodiumMg', '鈉 mg'], ['defaultAmount', '預設份量']] as const).map(([key, label]) => <input key={key} aria-label={label} type="number" min="0" placeholder={label} value={newFood[key] || ''} onChange={(event) => setNewFood({ ...newFood, [key]: Number(event.target.value) })} />)}<button type="button" className="primary" disabled={!newFood.name.trim()} onClick={saveFoodEntry}>{editingFoodId ? '儲存食物修改' : '新增食物'}</button></div>
-        <div className="food-list">{foods.length === 0 ? <p className="empty">尚未建立自訂食物。</p> : foods.map((food) => <article key={food.id}><span><strong>{food.name}</strong><small>{food.kcal} kcal · P {food.proteinG}g</small></span><div className="food-actions"><select aria-label={`${food.name}加入餐次`} defaultValue="lunch" id={`meal-${food.id}`}><option value="breakfast">早餐</option><option value="lunch">午餐</option><option value="dinner">晚餐</option><option value="evening">點心</option></select><button type="button" onClick={() => { const select = document.getElementById(`meal-${food.id}`) as HTMLSelectElement | null; addCustom(food, (select?.value ?? 'lunch') as MealKey) }}>加入</button><button type="button" onClick={() => editFood(food)}>編輯</button><button type="button" className="danger-text" onClick={() => onDeleteFood(food.id)}>刪除</button></div></article>)}</div>
+        <div className="food-form"><input aria-label="食物名稱" placeholder="食物名稱" value={newFood.name} onChange={(event) => setNewFood({ ...newFood, name: event.target.value })} /><select aria-label="計算基準" value={newFood.basis} onChange={(event) => setNewFood({ ...newFood, basis: event.target.value as CustomFood['basis'] })}><option value="100g">每100g</option><option value="serving">每份</option></select>{([['kcal', '熱量 kcal'], ['proteinG', '蛋白質 g'], ['carbsG', '碳水 g'], ['fatG', '脂肪 g'], ['fiberG', '纖維 g'], ['sodiumMg', '鈉 mg'], ['defaultAmount', '預設份量']] as const).map(([key, label]) => <input key={key} aria-label={label} type="number" min="0" placeholder={label} value={newFood[key] ?? ''} onChange={(event) => setNewFood({ ...newFood, [key]: event.target.value === '' && optionalFoodNutrients.has(key) ? undefined : Number(event.target.value) })} />)}<button type="button" className="primary" disabled={!newFood.name.trim()} onClick={saveFoodEntry}>{editingFoodId ? '儲存食物修改' : '新增食物'}</button></div>
+        <div className="food-list">{foods.length === 0 ? <p className="empty">尚未建立自訂食物。</p> : foods.map((food) => <article key={food.id}><span><strong>{food.name}</strong><small>{food.kcal} kcal · P {food.proteinG}g</small></span><div className="food-actions"><select aria-label={`${food.name}加入餐次`} defaultValue="lunch" id={`meal-${food.id}`}><option value="breakfast">早餐</option><option value="lunch">午餐</option><option value="dinner">晚餐</option><option value="evening">點心</option></select><button type="button" onClick={() => { const select = document.getElementById(`meal-${food.id}`) as HTMLSelectElement | null; const target = (select?.value ?? 'lunch') as MealKey; setExpandedMeal(target); setFoodSheet({ meal: target, tab: 'mine', foodId: food.id }) }}>加入草稿</button><button type="button" onClick={() => editFood(food)}>編輯</button><button type="button" className="danger-text" onClick={() => onDeleteFood(food.id)}>刪除</button></div></article>)}</div>
       </Section>
     </div>}
 
@@ -212,6 +223,6 @@ export function RecordPage({ date, log, logs, foods, settings, initialStage, sav
     {copyMessage && <div className="copy-toast" role="status">{copyMessage}</div>}
     {deletedMealLine && <div className="undo-toast" role="status"><span>已刪除「{deletedMealLine.removed.line.label}」<small>餐點總計已重新計算</small></span><button type="button" onClick={() => { updateDetails(restoreMealLine(deletedMealLine.details, deletedMealLine.removed)); if (deleteTimer.current) window.clearTimeout(deleteTimer.current); setDeletedMealLine(undefined); setExpandedMeal(deletedMealLine.removed.meal) }}>復原</button></div>}
     {justFinalized && <div className="finalize-success" role="status"><Check /><strong>今日結算完成</strong><span>攝取 {Math.round(log.intakeKcal ?? 0)} · 消耗 {Math.round(estimatedTDEE(log) ?? 0)} · 赤字 {Math.round(dailyDeficit(log) ?? 0)} kcal</span></div>}
-    <FoodAddSheet open={Boolean(foodSheet)} defaultMeal={foodSheet?.meal ?? 'lunch'} initialTab={foodSheet?.tab} initialTemplateId={foodSheet?.templateId} details={details} templates={templates} foods={foods} onApply={(next, meal, message) => { updateDetails(next); setExpandedMeal(meal); showCopyMessage(message) }} onEditExisting={(meal) => setExpandedMeal(meal)} onClose={() => setFoodSheet(undefined)} />
+    <FoodAddSheet open={Boolean(foodSheet)} date={date} logs={logs} defaultMeal={foodSheet?.meal ?? 'lunch'} initialTab={foodSheet?.tab} initialTemplateId={foodSheet?.templateId} initialFoodId={foodSheet?.foodId} details={details} templates={templates} foods={foods} onApply={async (next, meal, message) => { const saved = await updateDetails(next); if (!saved) throw new Error('save failed'); setExpandedMeal(meal); showCopyMessage(message) }} onClose={() => setFoodSheet(undefined)} />
   </section>
 }

@@ -124,6 +124,19 @@ export const linearRegressionProjection = (
   return yMean + slope * (x - xMean)
 }
 
+export type PredictionConfidence = 'insufficient' | 'low' | 'trend'
+
+export const weightPrediction = (
+  points: Array<{ date: string; weight: number }>,
+  targetDate: string
+): { confidence: PredictionConfidence; value?: number; sampleCount: number } => {
+  const sampleCount = points.length
+  if (sampleCount < 7) return { confidence: 'insufficient', sampleCount }
+  const value = linearRegressionProjection(points, targetDate)
+  if (value == null) return { confidence: 'insufficient', sampleCount }
+  return { confidence: sampleCount < 14 ? 'low' : 'trend', value: Math.round(value * 10) / 10, sampleCount }
+}
+
 export interface NutritionTotals { kcal: number; protein: number; carbs: number; fat: number; fiber: number; sodium: number }
 
 export const mealTotals = (details: MealDetails): NutritionTotals => {
@@ -153,6 +166,66 @@ export const mealTotals = (details: MealDetails): NutritionTotals => {
   }
   const oneDecimal = (value: number) => Math.round(value * 10) / 10
   return { kcal: Math.round(kcal), protein: oneDecimal(protein), carbs: oneDecimal(carbs), fat: oneDecimal(fat), fiber: oneDecimal(fiber), sodium: Math.round(sodium) }
+}
+
+export type MealName = 'breakfast' | 'lunch' | 'dinner' | 'evening'
+export type OptionalNutrient = 'carbs' | 'fat' | 'fiber' | 'sodium'
+
+export const mealSubtotal = (details: MealDetails, meal: MealName): NutritionTotals => mealTotals({
+  breakfast: meal === 'breakfast' ? details.breakfast : [],
+  lunch: meal === 'lunch' ? details.lunch : [],
+  dinner: meal === 'dinner' ? details.dinner : [],
+  evening: meal === 'evening' ? details.evening : [],
+  ramen: { ...details.ramen, enabled: meal === 'dinner' && details.ramen.enabled }
+})
+
+export const dinnerBudgetSummary = (details: MealDetails, settings: ChallengeSettings) => {
+  const breakfastKcal = mealSubtotal(details, 'breakfast').kcal
+  const lunchKcal = mealSubtotal(details, 'lunch').kcal
+  const dinnerKcal = mealSubtotal(details, 'dinner').kcal
+  const eveningKcal = mealSubtotal(details, 'evening').kcal
+  const budget = Math.max(0, settings.intakeKcalMaximum - breakfastKcal - lunchKcal - eveningKcal)
+  return {
+    breakfastKcal,
+    lunchKcal,
+    dinnerKcal,
+    eveningKcal,
+    budget,
+    remaining: Math.max(0, budget - dinnerKcal),
+    over: Math.max(0, dinnerKcal - budget)
+  }
+}
+
+const nutrientFields: Record<OptionalNutrient, keyof MealDetails['breakfast'][number]> = {
+  carbs: 'carbsPerUnit', fat: 'fatPerUnit', fiber: 'fiberPerUnit', sodium: 'sodiumPerUnit'
+}
+
+/** Percentage of consumed food rows with an explicitly supplied nutrient value. */
+export const nutritionCoverage = (details: MealDetails, nutrient: OptionalNutrient): number => {
+  const lines = [...details.breakfast, ...details.lunch, ...details.dinner, ...details.evening].filter((line) => line.amount > 0)
+  const field = nutrientFields[nutrient]
+  let total = lines.length
+  let covered = lines.filter((line) => line[field] != null && Number.isFinite(line[field] as number)).length
+  if (details.ramen.enabled) {
+    total += 1
+    const ramenKnown = nutrient === 'carbs' ? details.ramen.packageCarbsG != null
+      : nutrient === 'fat' ? details.ramen.packageFatG != null
+        : nutrient === 'sodium' ? details.ramen.packageSodiumMg != null
+          : details.ramen.vegetablesG > 0
+    if (ramenKnown) covered += 1
+  }
+  return total ? Math.round(covered / total * 100) : 0
+}
+
+export const nutritionCoverageDisplay = (details: MealDetails, nutrient: OptionalNutrient, value: number | undefined) => {
+  const coverage = nutritionCoverage(details, nutrient)
+  const unit = nutrient === 'sodium' ? 'mg' : 'g'
+  const amount = nutrient === 'sodium' ? Math.round(value ?? 0).toLocaleString('zh-TW') : (value ?? 0).toFixed(1)
+  return {
+    coverage,
+    value: `${coverage < 90 ? '至少 ' : ''}${amount} ${unit}`,
+    note: coverage < 90 ? `部分資料 · 涵蓋 ${coverage}%` : '完整'
+  }
 }
 
 export const achievementRate = (log: DailyLog, settings: ChallengeSettings): number => {

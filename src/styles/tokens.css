@@ -1,0 +1,28 @@
+:root {
+  --surface: var(--card);
+  --surface-soft: var(--card-2);
+  --border: var(--line);
+  --primary: var(--green);
+  --primary-strong: #0f7047;
+  --primary-soft: var(--green-deep);
+  --info: var(--blue);
+  --info-soft: color-mix(in srgb, var(--blue), transparent 88%);
+  --warning: var(--yellow);
+  --warning-soft: color-mix(in srgb, var(--yellow), transparent 90%);
+  --danger: var(--red);
+  --danger-soft: color-mix(in srgb, var(--red), transparent 90%);
+  --shadow-card: 0 8px 28px color-mix(in srgb, var(--text), transparent 93%);
+  --shadow-float: 0 18px 50px rgba(18, 38, 27, .16);
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-xl: 26px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --tap-min: 44px;
+  --nav-height: 78px;
+}

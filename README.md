@@ -40,6 +40,15 @@ PNG 與 PDF 都在瀏覽器記憶體中產生，不會自動上傳。若要交�
 - 首頁改顯示晚餐主餐預算；營養素標示完整度，體重預測依 7／14 筆晨重分級顯示信心。
 - IndexedDB 維持版本 1，`BackupPayload.schemaVersion` 維持 1；載入既有紀錄不會自動遷移或回寫。
 
+## V06 長期減脂 Planner（Phase 1–2）
+
+- 既有使用者仍可直接使用 7 日 Sprint；首頁與設定提供非阻斷式的「建立長期減脂計畫」入口。
+- 建立流程包含基本資料、生活型態、10 項安全篩檢與本機計算的計畫草稿；只有最後明確確認後才會寫入 Planner。
+- 熱量、蛋白質、喝水、睡眠與運動目標先由 deterministic Safety Engine 限制在安全邊界內。阻擋或需專業協助的情況不會產生自助減脂處方。
+- 首頁、紀錄頁與趨勢頁會讀取選定日期當時生效的 immutable `PlanVersion`；每週檢討的調整會建立新版本，不會覆蓋歷史版本。
+- Planner 使用獨立的 `80kg-sprint-planner` IndexedDB version 1 和獨立 JSON 備份。原有 `80kg-sprint` DB、stores 與 `BackupPayload.schemaVersion = 1` 完全不變。
+- Phase 1–2 的建議文字由本機規則產生，不呼叫 AI、不上傳健康資料。AI 草稿／後端驗證留到 Phase 3 之後。
+
 ## 本機啟動
 
 需要目前仍受支援的 Node.js LTS 與 npm。

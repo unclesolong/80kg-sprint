@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Check, Copy, Moon, Plus, Scale, Utensils } from 'lucide-react'
 import { dailyDeficit, effectiveActiveKcal, estimatedTDEE, nutritionCoverageDisplay, parseLocalDate, sleepDurationHours } from '../calculations'
 import type { ChallengeSettings, CustomFood, DailyLog, MealDetails, RecordStage, WorkoutEntry, WorkoutType } from '../types'
+import type { PlanVersion } from '../planner/types'
 import { duplicateMealLine, ensureMealDetails, mealKeys, mealLabels, moveMealLine, nutritionPatch, removeMealLine, restoreMealLine, updateMealLineAmount, type MealKey, type RemovedMealLine } from '../mealOperations'
 import { FoodAddSheet } from '../components/FoodAddSheet'
 import { MealCard } from '../components/MealCard'
@@ -17,14 +18,15 @@ const workoutLabels: Record<WorkoutType, string> = { walk: '步行', slow_jog: '
 const blankWorkout = (): WorkoutEntry => ({ id: crypto.randomUUID(), type: 'walk', title: '步行', durationMinutes: 0, source: 'apple_watch', activityKcalMode: 'included_in_daily_total' })
 const blankFood = (): Omit<CustomFood, 'id'> => ({ name: '', basis: '100g', kcal: 0, proteinG: 0, defaultAmount: 100 })
 const optionalFoodNutrients = new Set<keyof Omit<CustomFood, 'id'>>(['carbsG', 'fatG', 'fiberG', 'sodiumMg'])
-export function RecordPage({ date, log, logs, foods, settings, initialStage, initialFoodIntent, saveState, onDate, onChange, onSaveFood, onDeleteFood, onFoodIntentConsumed }: {
+export function RecordPage({ date, log, logs, foods, settings, planVersion, initialStage, initialFoodIntent, saveState, onDate, onChange, onSaveFood, onDeleteFood, onFoodIntentConsumed }: {
   date: string
   log: DailyLog
   logs: DailyLog[]
   foods: CustomFood[]
   settings: ChallengeSettings
+  planVersion?: PlanVersion
   initialStage: RecordStage
-  initialFoodIntent?: { meal: MealKey; templateId: string }
+  initialFoodIntent?: { meal: MealKey; templateId?: string }
   saveState: 'saved' | 'saving' | 'error'
   onDate: (date: string) => void
   onChange: (patch: Partial<DailyLog>) => Promise<boolean>
@@ -52,7 +54,7 @@ export function RecordPage({ date, log, logs, foods, settings, initialStage, ini
     if (!initialFoodIntent) return
     setActiveStage('food')
     setExpandedMeal(initialFoodIntent.meal)
-    setFoodSheet({ meal: initialFoodIntent.meal, tab: 'templates', templateId: initialFoodIntent.templateId })
+    setFoodSheet({ meal: initialFoodIntent.meal, ...(initialFoodIntent.templateId ? { tab: 'templates' as const, templateId: initialFoodIntent.templateId } : {}) })
     onFoodIntentConsumed()
   }, [initialFoodIntent, onFoodIntentConsumed])
   useEffect(() => { sleepTimesRef.current = { startedAt: log.sleepStartedAt, endedAt: log.sleepEndedAt } }, [log.sleepStartedAt, log.sleepEndedAt])
@@ -151,6 +153,7 @@ export function RecordPage({ date, log, logs, foods, settings, initialStage, ini
 
   return <section className="page record-page sprint-record">
     <header className="page-header"><div><p className="eyebrow">每天三次 · 自動儲存</p><h1>每日紀錄</h1></div><input aria-label="紀錄日期" type="date" value={date} onChange={(event) => onDate(event.target.value)} /></header>
+    {planVersion && <div className="record-plan-targets health-card" aria-label="本日有效計畫"><span>本日有效計畫</span><strong>{planVersion.calorieTargetKcal} kcal</strong><small>蛋白質 {planVersion.proteinMinG}–{planVersion.proteinMaxG} g · 飲水 {planVersion.waterTargetMl} ml</small></div>}
     <nav className="stage-tabs" aria-label="每日三階段">{stages.map((stage, index) => <button type="button" key={stage.id} className={`${activeStage === stage.id ? 'active' : ''} ${stage.complete ? 'complete' : ''}`} onClick={() => setActiveStage(stage.id)}><b>{stage.complete ? <Check /> : index + 1}</b><span>{stage.label}{stage.incomplete && !stage.complete && <i aria-label="尚未完成" />}</span><small>{stage.sub}</small></button>)}</nav>
 
     {activeStage === 'morning' && <div className="record-tab-panel">

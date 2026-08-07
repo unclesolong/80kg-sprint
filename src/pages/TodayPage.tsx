@@ -3,15 +3,23 @@ import { Check, ChevronRight, Droplets, Footprints, Moon, Scale, Utensils } from
 import { buildAdvice } from '../advice'
 import { achievementRate, activityTotals, dailyCompletion, daysBetween, dinnerBudgetSummary, finalizedCumulativeDeficit, finalizedDeficit, nutritionCoverageDisplay, remainingActivity, weightTrendStatus } from '../calculations'
 import { ensureMealDetails } from '../mealOperations'
+import { PlanHero } from '../components/planner/PlanHero'
+import type { FatLossPlan, PlanVersion, UserProfile } from '../planner/types'
 import type { ChallengeSettings, DailyLog, FoodTemplate, RecordStage } from '../types'
 
 const rounded = (value?: number) => value == null ? '—' : Math.round(value).toLocaleString('zh-TW')
 
-export function TodayPage({ today, log, logs, settings, onQuickAdd, onOpenRecord, onOpenFoodTemplate }: {
+export function TodayPage({ today, log, logs, settings, plan, planVersion, plannerProfile, plannerError, onOpenPlanner, onOpenWeeklyReview, onQuickAdd, onOpenRecord, onOpenFoodTemplate }: {
   today: string
   log: DailyLog
   logs: DailyLog[]
   settings: ChallengeSettings
+  plan?: FatLossPlan
+  planVersion?: PlanVersion
+  plannerProfile?: UserProfile
+  plannerError?: string
+  onOpenPlanner: () => void
+  onOpenWeeklyReview: () => void
   onQuickAdd: (patch: Partial<DailyLog>) => void
   onOpenRecord: (stage: RecordStage) => void
   onOpenFoodTemplate: (template: FoodTemplate) => void
@@ -23,15 +31,16 @@ export function TodayPage({ today, log, logs, settings, onQuickAdd, onOpenRecord
   const allLogs = [...logs.filter((item) => item.id !== log.id), log]
   const morning = allLogs.filter((item) => item.date <= today && item.weightCondition === 'morning_fasted' && item.weightKg != null).sort((a, b) => a.date.localeCompare(b.date))
   const currentWeight = morning.at(-1)?.weightKg
+  const targetSettings = planVersion ? { ...settings, targetWeightKg: plan?.goalWeightKg ?? settings.targetWeightKg, intakeKcalMinimum: planVersion.calorieRangeMinKcal, intakeKcalMaximum: planVersion.calorieTargetKcal, proteinMinimumG: planVersion.proteinMinG, proteinMaximumG: planVersion.proteinMaxG, waterMinimumMl: planVersion.waterTargetMl } : settings
   const totalDays = Math.max(daysBetween(settings.startDate, settings.finalWeighInDate), 1)
   const currentDay = Math.min(Math.max(daysBetween(settings.startDate, today) + 1, 1), totalDays)
   const trend = weightTrendStatus(allLogs, today, settings)
   const activity = activityTotals(log)
   const details = ensureMealDetails(log)
-  const dinner = dinnerBudgetSummary(details, settings)
-  const activityRemaining = remainingActivity(log, settings)
-  const completion = dailyCompletion(log, settings)
-  const advice = buildAdvice(log, allLogs, settings)
+  const dinner = dinnerBudgetSummary(details, targetSettings)
+  const activityRemaining = remainingActivity(log, targetSettings)
+  const completion = dailyCompletion(log, targetSettings)
+  const advice = buildAdvice(log, allLogs, targetSettings)
   const deficit = finalizedDeficit(log)
   const cumulative = finalizedCumulativeDeficit(allLogs, settings)
   const homeTemplateIds = ['fixed_breakfast', 'fage_250', 'chicken_rice', 'chicken_pasta', 'ramen_chicken', 'soy_chia']
@@ -48,9 +57,9 @@ export function TodayPage({ today, log, logs, settings, onQuickAdd, onOpenRecord
   else if (log.lowerLegTightness === 2 || legIncreasing) action = { title: '今天先保護下肢', detail: '不要補跑；自然走路沒有加劇時，輕鬆走 10–20 分鐘即可。', stage: 'morning', tone: 'near' }
   else if (log.weightKg == null || log.weightCondition !== 'morning_fasted') action = { title: '先記錄晨間體重', detail: '起床、上完廁所後量一次即可。', stage: 'morning', tone: 'near' }
   else if (log.sleepHours == null) action = { title: '補上前一晚睡眠', detail: '填寫睡眠時數與下肢緊繃程度。', stage: 'morning', tone: 'near' }
-  else if ((log.waterMl ?? 0) < settings.waterMinimumMl - 500) action = { title: '先補 500 ml 白開水', detail: `目前 ${rounded(log.waterMl)} ml，分兩次喝完即可。`, stage: 'food', tone: 'near' }
+  else if ((log.waterMl ?? 0) < targetSettings.waterMinimumMl - 500) action = { title: '先補 500 ml 白開水', detail: `目前 ${rounded(log.waterMl)} ml，分兩次喝完即可。`, stage: 'food', tone: 'near' }
   else if (log.intakeKcal == null) action = { title: '更新今天已吃的食物', detail: '用真實餐點快捷加入，熱量與營養素會一起計算。', stage: 'food', tone: 'near' }
-  else if ((log.proteinG ?? 0) < settings.proteinMinimumG) action = { title: '下一餐優先安排蛋白質', detail: `目前 ${rounded(log.proteinG)} g，目標至少 ${settings.proteinMinimumG} g。`, stage: 'food', tone: 'near' }
+  else if ((log.proteinG ?? 0) < targetSettings.proteinMinimumG) action = { title: '下一餐優先安排蛋白質', detail: `目前 ${rounded(log.proteinG)} g，目標至少 ${targetSettings.proteinMinimumG} g。`, stage: 'food', tone: 'near' }
   else if (activity.effectiveActiveKcal == null || log.restingKcal == null || log.exerciseMinutes == null || log.steps == null) action = { title: '晚上抄入 Watch 四個數字', detail: '活動、靜態能量、運動分鐘與步數。', stage: 'evening', tone: 'near' }
   else if (log.hungerLevel == null || log.fatigueLevel == null || log.highSaltMeal == null) action = { title: '補上今晚的身體感受', detail: '記錄飢餓、疲勞與高鹽餐，再完成結算。', stage: 'evening', tone: 'near' }
   else if (!log.dayFinalized) action = { title: '今天可以完成結算', detail: activityRemaining === 0 ? '活動已達基本目標，不需要再補跑。' : `活動還差 ${rounded(activityRemaining)} kcal；晚餐後輕鬆走即可。`, stage: 'evening', tone: 'good' }
@@ -74,8 +83,8 @@ export function TodayPage({ today, log, logs, settings, onQuickAdd, onOpenRecord
     waterTimer.current = window.setTimeout(() => setWaterToast(undefined), 5000)
   }
   const nutrientRows = [
-    { label: '熱量', value: `${Math.round(log.intakeKcal ?? 0).toLocaleString('zh-TW')} kcal`, note: '完整' },
-    { label: '蛋白質', value: `${(log.proteinG ?? 0).toFixed(1)} g`, note: '完整' },
+    { label: '熱量', value: log.intakeKcal == null ? '—' : `${Math.round(log.intakeKcal).toLocaleString('zh-TW')} kcal`, note: log.intakeKcal == null ? '尚未記錄' : '完整' },
+    { label: '蛋白質', value: log.proteinG == null ? '—' : `${log.proteinG.toFixed(1)} g`, note: log.proteinG == null ? '尚未記錄' : '完整' },
     { label: '碳水', ...nutritionCoverageDisplay(details, 'carbs', log.carbsG) },
     { label: '脂肪', ...nutritionCoverageDisplay(details, 'fat', log.fatG) },
     { label: '纖維', ...nutritionCoverageDisplay(details, 'fiber', log.fiberG) },
@@ -83,18 +92,21 @@ export function TodayPage({ today, log, logs, settings, onQuickAdd, onOpenRecord
   ]
 
   return <section className="page today-page sprint-home">
-    <header className="sprint-hero hero-card">
+    {plan && planVersion ? <PlanHero today={today} log={log} plan={plan} version={planVersion} profile={plannerProfile} currentWeight={currentWeight} onOpenPlan={onOpenPlanner} onOpenWeeklyReview={onOpenWeeklyReview} /> : <header className="sprint-hero hero-card">
       <div className="hero-top"><span>第 {currentDay}／{totalDays} 天</span><span className={`finalized-badge ${log.dayFinalized ? 'done' : ''}`}>{log.dayFinalized ? <><Check size={14} /> 已結算</> : '尚未結算'}</span></div>
       <div className="hero-weight"><strong>{settings.baselineWeightKg.toFixed(1)}</strong><span>kg</span><i>→</i><strong>{settings.targetWeightKg.toFixed(1)}</strong><span>kg</span></div>
       <p>最新晨間 <b>{currentWeight?.toFixed(1) ?? '—'} kg</b><span>距離目標 {currentWeight == null ? '—' : Math.max(0, currentWeight - settings.targetWeightKg).toFixed(1)} kg</span></p>
       <div className="sprint-nodes" aria-label={`第 ${currentDay} 天，共 ${totalDays} 天`}>{Array.from({ length: totalDays }, (_, index) => <i key={index} className={index + 1 <= currentDay ? 'active' : ''} />)}</div>
       <div className={`hero-status ${trend.status}`}><span>{trend.label}</span><small>{trend.detail}</small></div>
-    </header>
+    </header>}
 
-    <div className="budget-grid">
+    {!plan && <button type="button" className="planner-entry-card health-card" onClick={onOpenPlanner}><span>新增功能</span><strong>建立長期減脂計畫</strong><small>以既有設定與最近晨重預填；確認前不會寫入新資料庫。</small><ChevronRight /></button>}
+    {plannerError && <p className="planner-load-warning">長期計畫暫時無法載入；每日紀錄仍可正常使用。</p>}
+
+    {!planVersion && <div className="budget-grid">
       <article className="budget-card dinner-budget standard-card"><Utensils aria-hidden="true" />{dinner.dinnerKcal > 0 ? <><span>晚餐</span><strong>{rounded(dinner.dinnerKcal)}<small>／{rounded(dinner.budget)} kcal</small></strong><p>{dinner.over > 0 ? `晚餐超出 ${rounded(dinner.over)} kcal` : `還有 ${rounded(dinner.remaining)} kcal 空間`}</p></> : <><span>今晚主餐預算</span><strong>{rounded(dinner.budget)}<small> kcal</small></strong><p>已扣除早餐、午餐與點心</p></>}</article>
       <article className="budget-card standard-card"><Footprints aria-hidden="true" /><span>{activityRemaining > 0 ? '活動還差' : '基本目標已達'}</span><strong>{activityRemaining > 0 ? rounded(activityRemaining) : '完成'}{activityRemaining > 0 && <small> kcal</small>}</strong><p>目前 {rounded(activity.effectiveActiveKcal)}／{settings.activeKcalMinimum}</p></article>
-    </div>
+    </div>}
 
     <button type="button" className={`next-action standard-card ${action.tone}`} onClick={() => onOpenRecord(action.stage)}><span>今日唯一行動</span><strong>{action.title}</strong><small>{action.detail}</small><ChevronRight aria-hidden="true" /></button>
 
@@ -102,7 +114,7 @@ export function TodayPage({ today, log, logs, settings, onQuickAdd, onOpenRecord
 
     <section className="quick-sprint flat-section"><div className="flat-heading"><h2>快速加入</h2><span>白天隨吃隨記</span></div><div className="quick-water"><button onClick={() => addWater(250)}><Droplets size={18} />＋250 ml</button><button onClick={() => addWater(500)}><Droplets size={18} />＋500 ml</button></div><div className="food-shortcuts" aria-label="食物快捷模板">{templates.map((template) => <button type="button" key={template.id} onClick={() => onOpenFoodTemplate(template)}><strong>{template.name}</strong><small>約 {Math.round(template.kcal)} kcal · P {Math.round(template.proteinG)}g</small></button>)}</div></section>
 
-    <details className="more-data standard-card"><summary><span>更多資料</span><strong>{log.dayFinalized ? `達成率 ${achievementRate(log, settings)}%` : `完成 ${completion.completed}／${completion.total}`}</strong></summary><div className="more-data-body">
+    <details className="more-data standard-card"><summary><span>更多資料</span><strong>{log.dayFinalized ? `達成率 ${achievementRate(log, targetSettings)}%` : `完成 ${completion.completed}／${completion.total}`}</strong></summary><div className="more-data-body">
       {!log.dayFinalized && <p className="not-finalized-note">尚未完成晚間結算，不顯示最終赤字。</p>}
       {log.dayFinalized && <div className="final-energy-grid"><article><span>今日消耗</span><strong>{rounded((log.restingKcal ?? 0) + (activity.effectiveActiveKcal ?? 0))}</strong><small>kcal</small></article><article><span>今日赤字</span><strong>{rounded(deficit)}</strong><small>kcal</small></article><article><span>7 日累積</span><strong>{rounded(cumulative)}</strong><small>kcal</small></article></div>}
       <div className="more-metrics"><div><Utensils /><span>蛋白質</span><strong>{log.proteinG == null ? '—' : `${log.proteinG.toFixed(1)} g`}</strong></div><div><Droplets /><span>白開水</span><strong>{rounded(log.waterMl)} ml</strong></div><div><Moon /><span>前一晚睡眠</span><strong>{log.sleepHours == null ? '—' : `${log.sleepHours.toFixed(1)} 小時`}</strong></div><div><Footprints /><span>步數</span><strong>{rounded(log.steps)}</strong></div><div><span className="status-dot" /> <span>排便</span><strong>{log.bowelMovement === 'yes' ? '有' : log.bowelMovement === 'none' ? '沒有' : '未記錄'}</strong></div><div><span className="status-dot" /><span>下肢／足底狀態</span><strong>{log.lowerLegTightness ?? '—'}／5</strong></div></div>

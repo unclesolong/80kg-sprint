@@ -47,7 +47,11 @@ export default defineConfig(({ command }) => {
       })
     ],
     test: {
-      environment: 'node'
+      environment: 'node',
+      // The Worker has its own package, dependencies and Vitest config. Keeping
+      // the root suite scoped to src prevents CI from loading Worker tests before
+      // `npm ci --prefix api-worker` installs runtime dependencies such as Zod.
+      include: ['src/**/*.test.ts']
     }
   }
 })

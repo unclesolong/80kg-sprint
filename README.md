@@ -54,6 +54,18 @@ PNG 與 PDF 都在瀏覽器記憶體中產生，不會自動上傳。若要交�
 - AI 食物解析只拆解名稱、份量、生熟與品牌疑問，不產生 kcal／蛋白質。營養來自 Local、BLS gateway、USDA 或 Open Food Facts 候選，經使用者確認後才加入同一次批次草稿；未知值顯示 `—`，不冒充 `0`。
 - Phase 5 加入原創 WebP 視覺、375／390／430／760 px 響應式處理、深淺色、safe area、44 px touch target、focus trap、reduced motion 與圖表的螢幕閱讀摘要。
 
+## V06.1 UI／UX Major Revamp
+
+- 首頁改為 action-first：單一計畫 Hero 直接顯示第 X／Y 天、最新晨重、3／7 日趨勢與日結狀態，接著依序是「今日唯一行動」、2×2 compact metrics、三階段與快速加入。
+- Planner 的每日熱量統一由 `DailyTargetContext` 衍生；「今天還可吃」使用 calorie maximum，晚餐預算依早餐、午餐與晚間預留計算，不把 center 當作上限。
+- 每日紀錄保留早上／飲食／晚上三階段，把精確睡眠時間、完整營養與 Workout 明細收進進階區；Watch 四個數字與晚間結算保持在主要流程。
+- 餐點的移動、複製與刪除集中到 App 內 Action Sheet。沿用昨天早餐、整天或最近雞胸餐會先預覽，預設「追加」；只有明確選取才會取代，複製列一律建立新 key，並提供 5 秒復原。
+- FoodAddSheet 主分頁只保留最近、常用、套餐與我的食物；AI 解析與手動新增仍在次要操作。草稿由 footer 展開、顯示已加次數，最後仍只提交一次。
+- 體重趨勢提供 7 日／14 日／全部的純 UI 範圍，moving average 先對完整序列計算再切片；主圖只保留晨重散點、單一趨勢線與目標區間，固定 Inspector 與資料表持續可用。
+- PWA 更新前先顯示 DailyLog／MealLine／Workout 只讀摘要並提供 core、Planner JSON 匯出。更新前摘要與 SHA-256 只存於 `sessionStorage`，更新後只讀比對，不會自動清除或還原資料。
+- 清除 Sprint 與撤回 AI 改用可及的自訂 destructive sheet，不再使用 browser `confirm()`。
+- 核心 `80kg-sprint` IndexedDB 仍是 version 1（`logs`、`settings`、`foods`），Planner DB 與兩套 backup schema 都未變；V06.1 不含啟動時 migration 或批次回寫。
+
 ## 本機啟動
 
 需要目前仍受支援的 Node.js LTS 與 npm。

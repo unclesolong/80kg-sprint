@@ -1,7 +1,7 @@
 html { overflow-x: clip; }
 body { overflow-x: clip; }
 input, select, textarea { font-size: max(16px, 1rem); }
-.health-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
+.health-card { background: var(--v6-surface-1, var(--surface)); border: 1px solid var(--v6-border, var(--border)); border-radius: 18px; box-shadow: none; }
 .planner-stack-page, .plan-hero, .plan-metric-grid, .planner-dinner-card, .planner-step-card { font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }

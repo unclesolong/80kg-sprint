@@ -33,9 +33,15 @@ export const nutritionPatch = (details: MealDetails, now = new Date().toISOStrin
   }
 }
 
+const operationMealKey = (key: string, operation: string): string =>
+  `${key}-${operation}-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`}`
+
+const withCollisionSafeKey = (lines: MealLine[], line: MealLine, operation: string): MealLine =>
+  lines.some((item) => item.key === line.key) ? { ...line, key: operationMealKey(line.key, operation) } : { ...line }
+
 export const addMealLine = (details: MealDetails, meal: MealKey, line: MealLine): MealDetails => {
   const next = cloneMealDetails(details)
-  next[meal] = [...next[meal], { ...line }]
+  next[meal] = [...next[meal], withCollisionSafeKey(next[meal], line, 'add')]
   return next
 }
 
@@ -44,6 +50,10 @@ export interface DraftFoodEntry {
   meal: MealKey
   line: MealLine
   source: 'common' | 'template' | 'mine' | 'manual' | 'provider'
+  /** Local-only tap count used by the picker. It is never persisted. */
+  selectionCount?: number
+  /** Local-only source identity so same-named foods remain distinguishable. */
+  sourceId?: string
 }
 
 /** Adds a whole draft in one immutable clone without touching existing rows. */
@@ -52,18 +62,63 @@ export const addMealLines = (
   entries: Array<{ meal: MealKey; line: MealLine }>
 ): MealDetails => {
   const next = cloneMealDetails(details)
-  for (const entry of entries) next[entry.meal].push({ ...entry.line })
+  for (const entry of entries) next[entry.meal].push(withCollisionSafeKey(next[entry.meal], entry.line, 'add'))
   return next
 }
 
 /** Repeated taps on the same common ingredient increase its amount in-place. */
 export const mergeDraftFoodEntry = (entries: DraftFoodEntry[], entry: DraftFoodEntry): DraftFoodEntry[] => {
   if (entry.source !== 'common') return [...entries, entry]
-  const index = entries.findIndex((item) => item.source === 'common' && item.meal === entry.meal && item.line.label === entry.line.label)
+  const identity = entry.sourceId ?? entry.line.label
+  const index = entries.findIndex((item) => item.source === 'common' && item.meal === entry.meal && (item.sourceId ?? item.line.label) === identity)
   if (index < 0) return [...entries, entry]
   return entries.map((item, itemIndex) => itemIndex === index
-    ? { ...item, line: { ...item.line, amount: item.line.amount + entry.line.amount } }
+    ? {
+      ...item,
+      selectionCount: (item.selectionCount ?? 1) + (entry.selectionCount ?? 1),
+      line: { ...item.line, amount: item.line.amount + entry.line.amount }
+    }
     : item)
+}
+
+export type MealCopyMode = 'append' | 'replace'
+
+const copiedMealKey = (line: MealLine): string =>
+  `${line.key}-copy-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`}`
+
+/** Clones only consumed rows and always gives copied rows a new key. */
+export const cloneMealLinesForCopy = (
+  lines: MealLine[],
+  keyFactory: (line: MealLine) => string = copiedMealKey
+): MealLine[] => lines.filter((line) => line.amount > 0).map((line) => ({ ...line, key: keyFactory(line) }))
+
+/** Applies an explicit append/replace choice to one meal without mutating either input. */
+export const copyMealIntoDetails = (
+  current: MealDetails,
+  meal: MealKey,
+  sourceLines: MealLine[],
+  mode: MealCopyMode,
+  keyFactory?: (line: MealLine) => string
+): MealDetails => {
+  const next = cloneMealDetails(current)
+  const copied = cloneMealLinesForCopy(sourceLines, keyFactory)
+  next[meal] = mode === 'append' ? [...next[meal], ...copied] : copied
+  return next
+}
+
+/** Copies the four visible meals and always preserves the separate legacy ramen entry. */
+export const copyDayIntoDetails = (
+  current: MealDetails,
+  source: MealDetails,
+  mode: MealCopyMode,
+  keyFactory?: (line: MealLine) => string
+): MealDetails => {
+  const next = cloneMealDetails(current)
+  for (const meal of mealKeys) {
+    const copied = cloneMealLinesForCopy(source[meal], keyFactory)
+    next[meal] = mode === 'append' ? [...next[meal], ...copied] : copied
+  }
+  return next
 }
 
 export const commitDraftEntries = async (
@@ -90,17 +145,29 @@ export const commitDraftEntriesWithMetadata = async (
 
 export const updateMealLineAmount = (details: MealDetails, meal: MealKey, key: string, amount: number): MealDetails => {
   const next = cloneMealDetails(details)
-  next[meal] = next[meal].map((line) => line.key === key ? { ...line, amount: Math.max(0, amount) } : line)
+  const index = next[meal].findIndex((line) => line.key === key)
+  if (index >= 0) next[meal][index] = { ...next[meal][index], amount: Math.max(0, amount) }
   return next
 }
 
 export const moveMealLine = (details: MealDetails, from: MealKey, to: MealKey, key: string): MealDetails => {
   if (from === to) return cloneMealDetails(details)
   const next = cloneMealDetails(details)
-  const line = next[from].find((item) => item.key === key)
-  if (!line) return next
-  next[from] = next[from].filter((item) => item.key !== key)
-  next[to] = [...next[to], line]
+  const index = next[from].findIndex((item) => item.key === key)
+  if (index < 0) return next
+  const [line] = next[from].splice(index, 1)
+  // Legacy lunch/dinner placeholders reuse keys. A same-key destination is the
+  // same historical ingredient identity, so merge amounts without changing any
+  // persisted key or detaching FoodMetadata references.
+  const collisionIndexes = next[to].flatMap((item, itemIndex) => item.key === line.key ? [itemIndex] : [])
+  if (!collisionIndexes.length) next[to] = [...next[to], { ...line }]
+  else {
+    const insertAt = collisionIndexes[0]
+    const representative = next[to][insertAt]
+    const combined = { ...representative, amount: line.amount + collisionIndexes.reduce((sum, itemIndex) => sum + next[to][itemIndex].amount, 0) }
+    next[to] = next[to].filter((item) => item.key !== line.key)
+    next[to].splice(Math.min(insertAt, next[to].length), 0, combined)
+  }
   return next
 }
 
@@ -108,7 +175,7 @@ export const duplicateMealLine = (details: MealDetails, meal: MealKey, key: stri
   const next = cloneMealDetails(details)
   const index = next[meal].findIndex((line) => line.key === key)
   if (index < 0) return next
-  const copy = { ...next[meal][index], key: `${next[meal][index].key}-copy-${crypto.randomUUID()}` }
+  const copy = withCollisionSafeKey(next[meal], { ...next[meal][index], key: `${next[meal][index].key}-copy-${crypto.randomUUID()}` }, 'duplicate')
   next[meal].splice(index + 1, 0, copy)
   return next
 }
@@ -125,7 +192,14 @@ export const removeMealLine = (details: MealDetails, meal: MealKey, key: string)
 
 export const restoreMealLine = (details: MealDetails, removed: RemovedMealLine): MealDetails => {
   const next = cloneMealDetails(details)
-  next[removed.meal].splice(Math.min(removed.index, next[removed.meal].length), 0, { ...removed.line })
+  const existing = next[removed.meal].findIndex((line) => line.key === removed.line.key)
+  if (existing >= 0 && next[removed.meal][existing].amount > 0) return next
+  if (existing >= 0) next[removed.meal].splice(existing, 1)
+  next[removed.meal].splice(
+    Math.min(removed.index, next[removed.meal].length),
+    0,
+    { ...removed.line }
+  )
   return next
 }
 

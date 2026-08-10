@@ -7,5 +7,6 @@ import './styles/base.css'
 import './styles/components.css'
 import './styles/planner.css'
 import './styles/responsive.css'
+import './styles/v6.css'
 
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>)

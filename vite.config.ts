@@ -12,7 +12,9 @@ export default defineConfig(({ command }) => {
     plugins: [
       react(),
       VitePWA({
-        registerType: 'autoUpdate',
+        // Updates are deliberately user-confirmed. The app creates a backup
+        // acknowledgement and an integrity snapshot before activating a new SW.
+        registerType: 'prompt',
         injectRegister: null,
         manifest: {
           id: base,
@@ -35,8 +37,8 @@ export default defineConfig(({ command }) => {
         workbox: {
           cacheId: '80kg-sprint',
           cleanupOutdatedCaches: true,
-          clientsClaim: true,
-          skipWaiting: true,
+          clientsClaim: false,
+          skipWaiting: false,
           navigateFallback: 'index.html',
           globPatterns: ['**/*.{js,css,html,ico,png,webp,svg,webmanifest}']
         },
@@ -51,7 +53,7 @@ export default defineConfig(({ command }) => {
       // The Worker has its own package, dependencies and Vitest config. Keeping
       // the root suite scoped to src prevents CI from loading Worker tests before
       // `npm ci --prefix api-worker` installs runtime dependencies such as Zod.
-      include: ['src/**/*.test.ts']
+      include: ['src/**/*.test.{ts,tsx}']
     }
   }
 })

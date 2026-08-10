@@ -3,8 +3,8 @@ import { mealTotals } from './calculations'
 import { defaultFoodTemplates, emptyLog, emptyMealDetails, migrateLog } from './defaults'
 import { createFoodTemplateChange } from './foodTemplates'
 import {
-  addFoodTemplate, addMealLine, addMealLines, commitDraftEntries, commitDraftEntriesWithMetadata, commonIngredients, findFoodTemplate, ingredientMealLine,
-  manualMealLine, mergeDraftFoodEntry, moveMealLine, nutritionPatch, recentFoodItems, removeMealLine, restoreMealLine,
+  addFoodTemplate, addMealLine, addMealLines, commitDraftEntries, commitDraftEntriesWithMetadata, commonIngredients, copyDayIntoDetails, copyMealIntoDetails, findFoodTemplate, ingredientMealLine,
+  manualMealLine, mealKeys, mergeDraftFoodEntry, moveMealLine, nutritionPatch, recentFoodItems, removeMealLine, restoreMealLine,
   updateMealLineAmount, type DraftFoodEntry
 } from './mealOperations'
 
@@ -150,6 +150,88 @@ describe('飲食紀錄核心操作', () => {
     const merged = mergeDraftFoodEntry(mergeDraftFoodEntry([], first), second)
     expect(merged).toHaveLength(1)
     expect(merged[0].line.amount).toBe(300)
+    expect(merged[0].selectionCount).toBe(2)
+  })
+
+  it('沿用早餐預設追加並為來源列建立全新 key', () => {
+    const current = addMealLines(emptyMealDetails(), [
+      { meal: 'breakfast', line: { key: 'today-1', label: '今天一', amount: 1, unit: '份', kcalPerUnit: 100, proteinPerUnit: 10 } },
+      { meal: 'breakfast', line: { key: 'today-2', label: '今天二', amount: 1, unit: '份', kcalPerUnit: 80, proteinPerUnit: 8 } }
+    ])
+    const source = [
+      { key: 'yesterday-1', label: '昨天一', amount: 1, unit: '份' as const, kcalPerUnit: 200, proteinPerUnit: 20 },
+      { key: 'yesterday-2', label: '昨天二', amount: 1, unit: '份' as const, kcalPerUnit: 180, proteinPerUnit: 18 }
+    ]
+    const beforeCurrent = structuredClone(current)
+    const beforeSource = structuredClone(source)
+    let index = 0
+    const next = copyMealIntoDetails(current, 'breakfast', source, 'append', () => `new-${++index}`)
+    expect(next.breakfast.filter((line) => line.amount > 0).map((line) => line.key)).toEqual(['today-1', 'today-2', 'new-1', 'new-2'])
+    expect(current).toEqual(beforeCurrent)
+    expect(source).toEqual(beforeSource)
+  })
+
+  it('只有明確 replace 才取代目前早餐', () => {
+    const current = addMealLine(emptyMealDetails(), 'breakfast', { key: 'today', label: '今天', amount: 1, unit: '份', kcalPerUnit: 100, proteinPerUnit: 10 })
+    const source = [{ key: 'source', label: '昨天', amount: 1, unit: '份' as const, kcalPerUnit: 200, proteinPerUnit: 20 }]
+    const appended = copyMealIntoDetails(current, 'breakfast', source, 'append', () => 'append-copy')
+    const replaced = copyMealIntoDetails(current, 'breakfast', source, 'replace', () => 'replace-copy')
+    expect(appended.breakfast.some((line) => line.key === 'today')).toBe(true)
+    expect(replaced.breakfast.filter((line) => line.amount > 0).map((line) => line.key)).toEqual(['replace-copy'])
+  })
+
+  it('昨天整天追加不清除任何目前餐點，且來源完全不變', () => {
+    const current = addMealLines(emptyMealDetails(), mealKeys.map((meal) => ({ meal, line: { key: `today-${meal}`, label: `今天${meal}`, amount: 1, unit: '份' as const, kcalPerUnit: 100, proteinPerUnit: 10 } })))
+    const source = addMealLines(emptyMealDetails(), mealKeys.map((meal) => ({ meal, line: { key: `source-${meal}`, label: `昨天${meal}`, amount: 1, unit: '份' as const, kcalPerUnit: 100, proteinPerUnit: 10 } })))
+    const before = structuredClone(source)
+    const next = copyDayIntoDetails(current, source, 'append', (line) => `new-${line.key}`)
+    for (const meal of mealKeys) {
+      expect(next[meal].some((line) => line.key === `today-${meal}`)).toBe(true)
+      expect(next[meal].some((line) => line.key === `new-source-${meal}`)).toBe(true)
+    }
+    expect(source).toEqual(before)
+  })
+
+  it('整天取代只處理預覽中的四餐，不會靜默覆寫泡麵紀錄', () => {
+    const current = emptyMealDetails()
+    current.ramen = { ...current.ramen, enabled: true, packageKcal: 480, chickenG: 120 }
+    const source = emptyMealDetails()
+    source.ramen = { ...source.ramen, enabled: false, packageKcal: 900, chickenG: 0 }
+    const next = copyDayIntoDetails(current, source, 'replace')
+    expect(next.ramen).toEqual(current.ramen)
+  })
+
+  it('舊版午晚餐 placeholder key 衝突時只移動一列並保留 MealLine key', () => {
+    const current = emptyMealDetails()
+    const lunchChicken = current.lunch.find((line) => line.key === 'chicken')!
+    lunchChicken.amount = 200
+    const before = mealTotals(current)
+    const next = moveMealLine(current, 'lunch', 'dinner', 'chicken')
+    const moved = next.dinner.filter((line) => line.amount > 0)
+    expect(moved).toHaveLength(1)
+    expect(moved[0].key).toBe('chicken')
+    expect(next.dinner.filter((line) => line.key === 'chicken')).toHaveLength(1)
+    expect(mealTotals(next)).toEqual(before)
+  })
+
+  it('目的餐已有同 key 食物時合併份量，不修改任一歷史 key', () => {
+    const current = emptyMealDetails()
+    current.lunch.find((line) => line.key === 'chicken')!.amount = 100
+    current.dinner.find((line) => line.key === 'chicken')!.amount = 200
+    const next = moveMealLine(current, 'lunch', 'dinner', 'chicken')
+    expect(next.lunch.some((line) => line.key === 'chicken')).toBe(false)
+    expect(next.dinner.filter((line) => line.key === 'chicken')).toHaveLength(1)
+    expect(next.dinner.find((line) => line.key === 'chicken')?.amount).toBe(300)
+    expect(mealTotals(next)).toEqual(mealTotals(current))
+  })
+
+  it('同一刪除操作重複復原保持冪等且不修改既有 key', () => {
+    const current = addMealLine(emptyMealDetails(), 'breakfast', { key: 'undo-line', label: '測試', amount: 1, unit: '份', kcalPerUnit: 100, proteinPerUnit: 10 })
+    const removed = removeMealLine(current, 'breakfast', 'undo-line').removed!
+    const once = restoreMealLine(removeMealLine(current, 'breakfast', 'undo-line').details, removed)
+    const twice = restoreMealLine(once, removed)
+    expect(twice.breakfast.filter((line) => line.key === 'undo-line')).toHaveLength(1)
+    expect(mealTotals(twice)).toEqual(mealTotals(once))
   })
 
   it('稍後再次新增只追加，不取代原有餐點', () => {

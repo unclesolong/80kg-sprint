@@ -1,4 +1,30 @@
 :root {
+  --v6-bg: #090c0a;
+  --v6-surface-1: #121714;
+  --v6-surface-2: #171d19;
+  --v6-surface-3: #1d241f;
+  --v6-text: #f5f7f5;
+  --v6-text-secondary: #a2aca5;
+  --v6-text-tertiary: #747f78;
+  --v6-border: rgba(244, 247, 244, .09);
+  --v6-border-strong: rgba(244, 247, 244, .15);
+  --v6-success: #65d38e;
+  --v6-success-strong: #2eae68;
+  --v6-success-soft: rgba(101, 211, 142, .12);
+  --v6-info: #72b7f2;
+  --v6-info-soft: rgba(114, 183, 242, .12);
+  --v6-warning: #f0bf63;
+  --v6-warning-soft: rgba(240, 191, 99, .12);
+  --v6-danger: #ef6d74;
+  --v6-danger-soft: rgba(239, 109, 116, .12);
+  --v6-shadow-float: 0 18px 50px rgba(0, 0, 0, .32);
+  --v6-space-1: 4px;
+  --v6-space-2: 8px;
+  --v6-space-3: 12px;
+  --v6-space-4: 16px;
+  --v6-space-5: 20px;
+  --v6-space-6: 24px;
+  --v6-space-7: 32px;
   --surface: var(--card);
   --surface-soft: var(--card-2);
   --border: var(--line);
@@ -25,4 +51,25 @@
   --space-6: 24px;
   --tap-min: 44px;
   --nav-height: 78px;
+}
+
+:root[data-theme='light'] {
+  --v6-bg: #f3f5f2;
+  --v6-surface-1: #fff;
+  --v6-surface-2: #edf1ed;
+  --v6-surface-3: #e5ebe6;
+  --v6-text: #172019;
+  --v6-text-secondary: #667169;
+  --v6-text-tertiary: #7d8981;
+  --v6-border: rgba(23, 32, 25, .1);
+  --v6-border-strong: rgba(23, 32, 25, .17);
+  --v6-success: #20864a;
+  --v6-success-strong: #126d39;
+  --v6-success-soft: rgba(32, 134, 74, .1);
+  --v6-info: #2779c8;
+  --v6-info-soft: rgba(39, 121, 200, .1);
+  --v6-warning: #ad7119;
+  --v6-warning-soft: rgba(173, 113, 25, .1);
+  --v6-danger: #c83e47;
+  --v6-danger-soft: rgba(200, 62, 71, .1);
 }

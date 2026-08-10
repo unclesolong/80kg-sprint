@@ -82,4 +82,23 @@ describe('TodayPage V06 action-first structure', () => {
     expect(html).toContain('680')
     expect(html).toContain('<details class="v6-home-insights standard-card">')
   })
+
+  it('does not offer Planner creation when Planner storage could not be read', () => {
+    const log = emptyLog('2026-08-08')
+    const html = renderToStaticMarkup(createElement(TodayPage, {
+      today: log.date,
+      log,
+      logs: [log],
+      settings: defaultSettings,
+      plannerError: 'Planner DB 無法開啟',
+      onOpenPlanner: vi.fn(),
+      onOpenWeeklyReview: vi.fn(),
+      onQuickAdd: vi.fn(),
+      onOpenRecord: vi.fn(),
+      onOpenFoodTemplate: vi.fn()
+    }))
+
+    expect(html).toContain('長期計畫暫時無法載入')
+    expect(html).not.toContain('建立長期減脂計畫')
+  })
 })

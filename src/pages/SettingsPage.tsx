@@ -3,7 +3,7 @@ import { Bot, Database, FileText, ImageDown, MessageSquareText, ShieldCheck, Sma
 import { AIConsentDialog } from '../components/planner/AIConsentDialog'
 import { DestructiveActionSheet } from '../components/DestructiveActionSheet'
 import { defaultFoodTemplates } from '../defaults'
-import { buildCsv, buildWeeklySummary, downloadText, makeBackup } from '../export'
+import { buildCsv, buildWeeklySummary, downloadText } from '../export'
 import { shareReportPdf, shareReportPng } from '../report'
 import type { ChallengeSettings, CustomFood, DailyLog, FoodTemplate } from '../types'
 import { validateBackup } from '../validation'
@@ -14,9 +14,11 @@ const SettingNumber = ({ label, value, unit, step = 1, onChange }: { label: stri
 const blankFood = (): Omit<CustomFood, 'id'> => ({ name: '', basis: '100g', kcal: 0, proteinG: 0, defaultAmount: 100 })
 const optionalFoodNutrients = new Set<keyof Omit<CustomFood, 'id'>>(['carbsG', 'fatG', 'fiberG', 'sodiumMg'])
 
-export function SettingsPage({ today, settings, logs, foods, planner, aiConfigured, online, onEnableAI, onWithdrawAI, onOpenPlanner, onOpenPlanHistory, onPlannerImport, onSettings, onImport, onClear, onSaveFood, onDeleteFood }: {
+export function SettingsPage({ today, settings, logs, foods, planner, onboardingIncomplete = false, plannerDataUnavailable = false, aiConfigured, online, onEnableAI, onWithdrawAI, onOpenPlanner, onOpenPlanHistory, onPlannerImport, onSettings, onImport, onClear, onExportCore, onSaveFood, onDeleteFood }: {
   today: string; settings: ChallengeSettings; logs: DailyLog[]; foods: CustomFood[]
   planner: PlannerSnapshot
+  onboardingIncomplete?: boolean
+  plannerDataUnavailable?: boolean
   aiConfigured: boolean
   online: boolean
   onEnableAI: () => Promise<void>
@@ -27,6 +29,7 @@ export function SettingsPage({ today, settings, logs, foods, planner, aiConfigur
   onSettings: (settings: ChallengeSettings) => Promise<boolean>
   onImport: (settings: ChallengeSettings, logs: DailyLog[], foods: CustomFood[]) => Promise<void>
   onClear: () => Promise<void>
+  onExportCore: () => void | Promise<void>
   onSaveFood: (food: CustomFood) => Promise<void>
   onDeleteFood: (id: string) => Promise<void>
 }) {
@@ -47,12 +50,12 @@ export function SettingsPage({ today, settings, logs, foods, planner, aiConfigur
   }
   const templates = settings.foodTemplates ?? defaultFoodTemplates()
   const updateTemplate = (id: string, patch: Partial<FoodTemplate>) => set('foodTemplates', templates.map((template) => template.id === id ? { ...template, ...patch } : template))
-  const backup = () => downloadText(`80kg-sprint-backup-${today}.json`, JSON.stringify(makeBackup(settings, logs, foods), null, 2), 'application/json')
+  const backup = () => onExportCore()
   const plannerBackup = () => downloadText(`fat-loss-planner-backup-${today}.json`, JSON.stringify(makePlannerBackup(planner), null, 2), 'application/json')
   const share = async () => {
     const text = buildWeeklySummary(settings, logs, today)
     try {
-      if (navigator.share) await navigator.share({ title: '80KG Sprint 一週紀錄', text })
+      if (navigator.share) await navigator.share({ title: '減脂追蹤摘要', text })
       else if (navigator.clipboard) { await navigator.clipboard.writeText(text); setMessage('摘要已複製到剪貼簿。') }
       else downloadText(`80kg-sprint-summary-${today}.txt`, text)
     } catch (error) {
@@ -71,14 +74,15 @@ export function SettingsPage({ today, settings, logs, foods, planner, aiConfigur
     if (!file) return
     try {
       const parsed: unknown = JSON.parse(await file.text())
-      if (!validateBackup(parsed)) throw new Error('格式不符合 80KG Sprint 備份規格')
-      backup(); await onImport(parsed.settings, parsed.logs, parsed.foods); setMessage('匯入成功；匯入前的資料已自動下載備份。')
+      if (!validateBackup(parsed)) throw new Error('格式不符合減脂追蹤 JSON 備份規格')
+      await onImport(parsed.settings, parsed.logs, parsed.foods); setMessage('匯入成功；匯入前的資料已自動下載備份。')
     } catch (error) { setMessage(`匯入失敗：${error instanceof Error ? error.message : '無法讀取檔案'}。原有資料未變更。`) }
     finally { if (fileRef.current) fileRef.current.value = '' }
   }
   const importPlannerFile = async (file?: File) => {
     if (!file) return
     try {
+      if (plannerDataUnavailable) throw new Error('Planner 資料暫時無法讀取；請重新載入後再匯入')
       const parsed: unknown = JSON.parse(await file.text())
       if (!validatePlannerBackup(parsed)) throw new Error('格式不符合長期計畫備份規格')
       if (planner.plans.length || planner.profile || planner.safety || planner.planVersions.length || planner.weeklyReviews.length || planner.consents.length || planner.foodMetadata.length) plannerBackup()
@@ -127,13 +131,14 @@ export function SettingsPage({ today, settings, logs, foods, planner, aiConfigur
 
   return <section className="page settings-page">
     <header className="page-header"><div><p className="eyebrow">只保留每天會用到的</p><h1>設定</h1></div></header>
+    {onboardingIncomplete && <div className="v6-onboarding-status" role="status"><strong>發現既有紀錄</strong><span>基本設定標記尚未完成；這不會阻擋你查看或備份既有資料。</span></div>}
     <div className="privacy-card standard-card"><ShieldCheck aria-hidden="true" /><div><strong>{aiEnabled ? '日常資料留在裝置；AI 僅在你主動要求時連線' : '目前資料只儲存在此裝置'}</strong><p>{aiEnabled ? 'AI 只接收畫面列明的白名單彙整資料；GitHub 只保存程式碼。' : 'GitHub 只保存程式碼。刪除網站資料前，請先匯出 JSON。'}</p></div></div>
 
-    <div className="settings-group planner-settings-card health-card"><h3>長期減脂計畫</h3><p className="group-intro">Planner 使用獨立的 IndexedDB 與備份，不會覆蓋 7 日 Sprint。</p><div className="action-list"><button className="primary" onClick={onOpenPlanner}>{planner.plans.length ? '查看目前計畫' : '建立長期計畫'}</button><button onClick={onOpenPlanHistory}>計畫歷史</button><button disabled={!planner.plans.length} onClick={plannerBackup}>匯出 Planner JSON</button><button onClick={() => plannerFileRef.current?.click()}>匯入 Planner JSON</button><input ref={plannerFileRef} hidden type="file" accept="application/json,.json" onChange={(event) => void importPlannerFile(event.target.files?.[0])} /></div></div>
+    <div className="settings-group planner-settings-card health-card"><h3>長期減脂計畫</h3><p className="group-intro">Planner 使用獨立的 IndexedDB 與備份，不會覆蓋舊版短期挑戰。</p>{plannerDataUnavailable && <p className="planner-load-warning" role="alert">Planner 資料暫時無法讀取；為避免覆寫既有計畫，重新載入成功前已停用 Planner 寫入與匯入。</p>}<div className="action-list"><button className="primary" disabled={plannerDataUnavailable} onClick={onOpenPlanner}>{planner.plans.length ? '查看目前計畫' : '建立長期計畫'}</button><button disabled={plannerDataUnavailable} onClick={onOpenPlanHistory}>計畫歷史</button><button disabled={plannerDataUnavailable || !planner.plans.length} onClick={plannerBackup}>匯出 Planner JSON</button><button disabled={plannerDataUnavailable} onClick={() => plannerFileRef.current?.click()}>匯入 Planner JSON</button><input ref={plannerFileRef} hidden type="file" accept="application/json,.json" onChange={(event) => void importPlannerFile(event.target.files?.[0])} /></div></div>
 
-    <div className="settings-group ai-settings-card health-card"><div className="settings-card-title"><Bot aria-hidden="true" /><div><h3>可選 AI 功能</h3><p className="group-intro">計畫草稿、每週檢討與食物文字解析；全部都有本地／手動替代流程。</p></div></div><dl><div><dt>狀態</dt><dd>{!aiConfigured ? '網站尚未設定 AI 服務' : aiEnabled ? '已啟用' : '未啟用'}</dd></div>{consent?.acceptedAt && <div><dt>同意時間</dt><dd>{new Date(consent.acceptedAt).toLocaleString('zh-TW')}</dd></div>}</dl><div className="action-list">{!aiEnabled ? <button className="primary" disabled={!aiConfigured || !online || aiBusy} onClick={() => setShowConsent(true)}>{!aiConfigured ? 'AI 尚未設定' : !online ? '連線後可啟用' : '查看資料範圍並啟用'}</button> : <><button disabled={aiBusy} onClick={() => setDestructive({ kind: 'withdraw', clearRuns: false })}>撤回 AI 同意</button><button className="danger" disabled={aiBusy} onClick={() => setDestructive({ kind: 'withdraw', clearRuns: true })}>撤回並清除 AI 執行紀錄</button></>} </div><p className="ai-consent-note"><code>store: false</code> 不代表所有網路服務都保證絕對零留存；食物搜尋也可能將查詢詞送至外部資料來源。</p></div>
+    <div className="settings-group ai-settings-card health-card"><div className="settings-card-title"><Bot aria-hidden="true" /><div><h3>可選 AI 功能</h3><p className="group-intro">計畫草稿、每週檢討與食物文字解析；全部都有本地／手動替代流程。</p></div></div><dl><div><dt>狀態</dt><dd>{plannerDataUnavailable ? 'Planner 資料暫時無法讀取' : !aiConfigured ? '網站尚未設定 AI 服務' : aiEnabled ? '已啟用' : '未啟用'}</dd></div>{consent?.acceptedAt && <div><dt>同意時間</dt><dd>{new Date(consent.acceptedAt).toLocaleString('zh-TW')}</dd></div>}</dl><div className="action-list">{!aiEnabled ? <button className="primary" disabled={plannerDataUnavailable || !aiConfigured || !online || aiBusy} onClick={() => setShowConsent(true)}>{plannerDataUnavailable ? '重新載入後再設定 AI' : !aiConfigured ? 'AI 尚未設定' : !online ? '連線後可啟用' : '查看資料範圍並啟用'}</button> : <><button disabled={plannerDataUnavailable || aiBusy} onClick={() => setDestructive({ kind: 'withdraw', clearRuns: false })}>撤回 AI 同意</button><button className="danger" disabled={plannerDataUnavailable || aiBusy} onClick={() => setDestructive({ kind: 'withdraw', clearRuns: true })}>撤回並清除 AI 執行紀錄</button></>} </div><p className="ai-consent-note"><code>store: false</code> 不代表所有網路服務都保證絕對零留存；食物搜尋也可能將查詢詞送至外部資料來源。</p></div>
 
-    <div className="settings-group standard-card"><h3>這次 7 日衝刺</h3><label className="setting-row"><span>起始日期</span><input type="date" value={settings.startDate} onChange={(event) => set('startDate', event.target.value)} /></label><label className="setting-row"><span>最終秤重日</span><input type="date" value={settings.finalWeighInDate} onChange={(event) => set('finalWeighInDate', event.target.value)} /></label><SettingNumber label="基準體重" value={settings.baselineWeightKg} unit="kg" step={0.1} onChange={(value) => set('baselineWeightKg', value)} /><SettingNumber label="目標體重" value={settings.targetWeightKg} unit="kg" step={0.1} onChange={(value) => set('targetWeightKg', value)} /></div>
+    <details className="settings-details standard-card" open={!planner.plans.length}><summary>短期挑戰（舊版）</summary><div className="details-body"><p className="group-intro">這些設定保留 2026-08-01～2026-08-08 的原始短期挑戰。長期計畫使用獨立 Planner 設定。</p><label className="setting-row"><span>起始日期</span><input type="date" value={settings.startDate} onChange={(event) => set('startDate', event.target.value)} /></label><label className="setting-row"><span>最終秤重日</span><input type="date" value={settings.finalWeighInDate} onChange={(event) => set('finalWeighInDate', event.target.value)} /></label><SettingNumber label="基準體重" value={settings.baselineWeightKg} unit="kg" step={0.1} onChange={(value) => set('baselineWeightKg', value)} /><SettingNumber label="目標體重" value={settings.targetWeightKg} unit="kg" step={0.1} onChange={(value) => set('targetWeightKg', value)} /></div></details>
     <div className="settings-group standard-card"><h3>每天主要目標</h3><SettingNumber label="攝取下限" value={settings.intakeKcalMinimum} unit="kcal" onChange={(value) => set('intakeKcalMinimum', value)} /><SettingNumber label="攝取上限" value={settings.intakeKcalMaximum} unit="kcal" onChange={(value) => set('intakeKcalMaximum', value)} /><SettingNumber label="活動目標" value={settings.activeKcalTarget} unit="kcal" onChange={(value) => set('activeKcalTarget', value)} /><SettingNumber label="蛋白質至少" value={settings.proteinMinimumG} unit="g" onChange={(value) => set('proteinMinimumG', value)} /><SettingNumber label="喝水至少" value={settings.waterMinimumMl} unit="ml" onChange={(value) => set('waterMinimumMl', value)} /><SettingNumber label="睡眠至少" value={settings.sleepMinimumHours} unit="小時" step={0.25} onChange={(value) => set('sleepMinimumHours', value)} /></div>
 
     <details className="settings-details standard-card"><summary>進階目標</summary><div className="details-body"><SettingNumber label="身高" value={settings.heightCm} unit="cm" onChange={(value) => set('heightCm', value)} /><SettingNumber label="活動下限" value={settings.activeKcalMinimum} unit="kcal" onChange={(value) => set('activeKcalMinimum', value)} /><SettingNumber label="活動上限" value={settings.activeKcalMaximum} unit="kcal" onChange={(value) => set('activeKcalMaximum', value)} /><SettingNumber label="蛋白質上限" value={settings.proteinMaximumG} unit="g" onChange={(value) => set('proteinMaximumG', value)} /><SettingNumber label="飲水上限" value={settings.waterMaximumMl} unit="ml" onChange={(value) => set('waterMaximumMl', value)} /><SettingNumber label="步數下限" value={settings.stepsMinimum} unit="步" onChange={(value) => set('stepsMinimum', value)} /><SettingNumber label="步數上限" value={settings.stepsMaximum} unit="步" onChange={(value) => set('stepsMaximum', value)} /><SettingNumber label="運動分鐘下限" value={settings.exerciseMinutesMinimum} unit="分" onChange={(value) => set('exerciseMinutesMinimum', value)} /><SettingNumber label="運動分鐘上限" value={settings.exerciseMinutesMaximum} unit="分" onChange={(value) => set('exerciseMinutesMaximum', value)} /></div></details>
@@ -144,7 +149,7 @@ export function SettingsPage({ today, settings, logs, foods, planner, aiConfigur
 
     <details className="settings-details standard-card"><summary><span className="summary-with-icon"><Database />資料工具與外觀</span></summary><div className="details-body"><p className="group-intro">JSON 可完整還原。請勿把匯出的健康資料 commit 到 GitHub。</p><div className="action-list"><button onClick={() => downloadText(`80kg-sprint-${today}.csv`, buildCsv(logs), 'text/csv;charset=utf-8')}>匯出 CSV</button><button onClick={backup}>匯出 JSON 備份</button><button onClick={() => fileRef.current?.click()}>匯入 JSON</button><input ref={fileRef} hidden type="file" accept="application/json,.json" onChange={(event) => importFile(event.target.files?.[0])} /></div><h4>我的食物管理</h4><div className="v6-food-manager"><div className="food-form"><input aria-label="食物名稱" placeholder="食物名稱" value={newFood.name} onChange={(event) => setNewFood({ ...newFood, name: event.target.value })} /><select aria-label="計算基準" value={newFood.basis} onChange={(event) => setNewFood({ ...newFood, basis: event.target.value as CustomFood['basis'] })}><option value="100g">每100g</option><option value="serving">每份</option></select>{([['kcal', '熱量 kcal'], ['proteinG', '蛋白質 g'], ['carbsG', '碳水 g'], ['fatG', '脂肪 g'], ['fiberG', '纖維 g'], ['sodiumMg', '鈉 mg'], ['defaultAmount', '預設份量']] as const).map(([key, label]) => <input key={key} aria-label={label} type="number" min="0" placeholder={label} value={newFood[key] ?? ''} onChange={(event) => setNewFood({ ...newFood, [key]: event.target.value === '' && optionalFoodNutrients.has(key) ? undefined : Number(event.target.value) })} />)}<button type="button" className="primary" disabled={!newFood.name.trim() || foodBusy} onClick={() => void saveFoodEntry()}>{foodBusy ? '儲存中…' : editingFoodId ? '儲存食物修改' : '新增食物'}</button>{editingFoodId && <button type="button" disabled={foodBusy} onClick={() => { setEditingFoodId(undefined); setNewFood(blankFood()) }}>取消編輯</button>}</div><div className="food-list">{foods.length === 0 ? <p className="empty">尚未建立自訂食物。</p> : foods.map((food) => <article key={food.id}><span><strong>{food.name}</strong><small>{food.kcal} kcal · P {food.proteinG}g</small></span><div className="food-actions"><button type="button" disabled={foodBusy} onClick={() => editFood(food)}>編輯</button><button type="button" disabled={foodBusy} className="danger-text" onClick={() => void deleteFoodEntry(food.id)}>刪除</button></div></article>)}</div></div><h4>外觀</h4><div className="segmented" role="group" aria-label="外觀主題"><button aria-pressed={settings.theme === 'dark'} className={settings.theme === 'dark' ? 'selected' : ''} onClick={() => set('theme', 'dark')}>深色</button><button aria-pressed={settings.theme === 'light'} className={settings.theme === 'light' ? 'selected' : ''} onClick={() => set('theme', 'light')}>淺色</button></div><button className="danger clear-data" onClick={() => setDestructive({ kind: 'clear' })}>清除 7 日 Sprint 資料</button></div></details>
 
-    <div className="install-card standard-card"><Smartphone /><div><h3>加入 iPhone 主畫面</h3><ol><li>使用 Safari 開啟網站。</li><li>點底部「分享」。</li><li>選「加入主畫面」。</li></ol><p>安裝後可離線輸入；只有你主動使用 AI／外部食物搜尋時才會連線。</p></div></div>
+    <div className="install-card standard-card"><Smartphone /><div><h3>加入 iPhone 主畫面</h3><ol><li>使用 Safari 開啟網站。</li><li>點底部「分享」。</li><li>選「加入主畫面」。</li></ol><p>安裝後可離線輸入；只有你主動使用 AI／外部食物搜尋時才會連線。</p><p>圖標可能由 iOS 暫存；不需要為了圖標重新安裝。若日後要重新加入主畫面，請先匯出兩份 JSON 備份。</p></div></div>
     <p className="health-note">若疼痛持續、加劇或影響步態，請停止加量並尋求專業醫療評估。</p>
     {showConsent && <AIConsentDialog busy={aiBusy} onDecline={() => setShowConsent(false)} onAccept={() => void enableAI()} />}
     {destructive?.kind === 'clear' && <DestructiveActionSheet onClose={() => setDestructive(undefined)} onExportBackup={backup} onConfirm={async () => { await onClear(); setDestructive(undefined) }} />}

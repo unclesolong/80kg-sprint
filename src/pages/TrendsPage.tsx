@@ -154,7 +154,7 @@ export function TrendsPage({ logs, settings }: { logs: DailyLog[]; settings: Cha
       >
         <ResponsiveContainer width="100%" height="100%"><ComposedChart data={data} onClick={selectChartPoint} onMouseMove={selectChartPoint} margin={{ top: 10, right: 12, bottom: 0, left: 0 }}>
           {chartGrid}<ChartXAxis interval={xInterval} /><WeightYAxis />
-          <Area dataKey="targetRange" stroke="none" fill="#65d38e22" isAnimationActive={false} />
+          <Area dataKey="targetRange" stroke="var(--v6-success)" strokeWidth={1.5} fill="var(--v6-success-soft)" isAnimationActive={false} />
           <Line dataKey="target" stroke="var(--green)" strokeWidth={1.25} strokeDasharray="5 5" dot={false} connectNulls={false} isAnimationActive={false} />
           <Line dataKey="trend" stroke="var(--blue)" strokeWidth={2.5} dot={false} connectNulls={false} isAnimationActive={false} />
           <Scatter dataKey="morning" fill="var(--text)" line={false} isAnimationActive={false} />
@@ -168,11 +168,11 @@ export function TrendsPage({ logs, settings }: { logs: DailyLog[]; settings: Cha
       <div className="advanced-summary"><p>累積最終赤字 <strong>{simple('deficit', model.cumulativeFinalizedDeficit)}</strong></p><p>最終日線性估算 <strong>{predictionText}</strong></p><p>已結算 <strong>{model.finalizedCount} 天</strong></p><small>{predictionNote}</small></div>
 
       <ChartCard title="能量與赤字" note="攝取為已記錄值；總消耗只顯示已結算日期，赤字請見資料表。" ariaLabel="攝取熱量長條與已結算總消耗折線" keys={[{ className: 'intake', label: '攝取' }, { className: 'tdee', label: '總消耗' }]}>
-        <ResponsiveContainer width="100%" height="100%"><ComposedChart data={data} margin={{ top: 8, right: 10, bottom: 0, left: 0 }}>{chartGrid}<ChartXAxis interval={xInterval} /><YAxis width={42} tick={{ fill: 'var(--muted)', fontSize: 12 }} /><Bar dataKey="intake" fill="#f0bf63" isAnimationActive={false} /><Line dataKey="tdee" stroke="var(--blue)" strokeWidth={2} dot={false} connectNulls={false} isAnimationActive={false} /></ComposedChart></ResponsiveContainer>
+        <ResponsiveContainer width="100%" height="100%"><ComposedChart data={data} margin={{ top: 8, right: 10, bottom: 0, left: 0 }}>{chartGrid}<ChartXAxis interval={xInterval} /><YAxis width={42} tick={{ fill: 'var(--muted)', fontSize: 12 }} /><Bar dataKey="intake" fill="var(--v6-warning)" isAnimationActive={false} /><Line dataKey="tdee" stroke="var(--blue)" strokeWidth={2} dot={false} connectNulls={false} isAnimationActive={false} /></ComposedChart></ResponsiveContainer>
       </ChartCard>
 
       <ChartCard title="活動與運動" note="活動熱量與運動分鐘使用不同刻度，不互相加總。" ariaLabel="每日活動熱量與運動分鐘" keys={[{ className: 'active', label: '活動 kcal' }, { className: 'exercise', label: '運動分鐘' }]}>
-        <ResponsiveContainer width="100%" height="100%"><BarChart data={data} margin={{ top: 8, right: 0, bottom: 0, left: 0 }}>{chartGrid}<ChartXAxis interval={xInterval} /><YAxis yAxisId="kcal" width={42} tick={{ fill: 'var(--muted)', fontSize: 12 }} /><YAxis yAxisId="minutes" width={36} orientation="right" tick={{ fill: 'var(--muted)', fontSize: 12 }} /><Bar yAxisId="kcal" dataKey="active" fill="#65d38e" isAnimationActive={false} /><Line yAxisId="minutes" dataKey="exercise" stroke="var(--blue)" dot={false} connectNulls={false} isAnimationActive={false} /></BarChart></ResponsiveContainer>
+        <ResponsiveContainer width="100%" height="100%"><BarChart data={data} margin={{ top: 8, right: 0, bottom: 0, left: 0 }}>{chartGrid}<ChartXAxis interval={xInterval} /><YAxis yAxisId="kcal" width={42} tick={{ fill: 'var(--muted)', fontSize: 12 }} /><YAxis yAxisId="minutes" width={36} orientation="right" tick={{ fill: 'var(--muted)', fontSize: 12 }} /><Bar yAxisId="kcal" dataKey="active" fill="var(--v6-success)" isAnimationActive={false} /><Line yAxisId="minutes" dataKey="exercise" stroke="var(--blue)" dot={false} connectNulls={false} isAnimationActive={false} /></BarChart></ResponsiveContainer>
       </ChartCard>
 
       <ChartCard title="睡眠" note="只顯示已記錄的睡眠小時。" ariaLabel="每日睡眠小時折線" keys={[{ className: 'sleep', label: '睡眠小時' }]}>
@@ -180,7 +180,7 @@ export function TrendsPage({ logs, settings }: { logs: DailyLog[]; settings: Cha
       </ChartCard>
 
       <ChartCard title="身體感受" note="疲勞、飢餓與下肢／足底皆使用 0–5 刻度。" ariaLabel="疲勞、飢餓與下肢足底狀態折線" keys={[{ className: 'fatigue', label: '疲勞' }, { className: 'hunger', label: '飢餓' }, { className: 'leg', label: '下肢／足底' }]}>
-        <ResponsiveContainer width="100%" height="100%"><ComposedChart data={data} margin={{ top: 8, right: 10, bottom: 0, left: 0 }}>{chartGrid}<ChartXAxis interval={xInterval} /><YAxis width={30} domain={[0, 5]} ticks={[0, 1, 2, 3, 4, 5]} tick={{ fill: 'var(--muted)', fontSize: 12 }} /><Line dataKey="fatigue" stroke="#ef6d74" strokeWidth={1.5} dot={false} connectNulls={false} isAnimationActive={false} /><Line dataKey="hunger" stroke="#f0bf63" strokeWidth={1.5} dot={false} connectNulls={false} isAnimationActive={false} /><Line dataKey="leg" stroke="#d594f5" strokeWidth={1.5} dot={false} connectNulls={false} isAnimationActive={false} /></ComposedChart></ResponsiveContainer>
+        <ResponsiveContainer width="100%" height="100%"><ComposedChart data={data} margin={{ top: 8, right: 10, bottom: 0, left: 0 }}>{chartGrid}<ChartXAxis interval={xInterval} /><YAxis width={30} domain={[0, 5]} ticks={[0, 1, 2, 3, 4, 5]} tick={{ fill: 'var(--muted)', fontSize: 12 }} /><Line dataKey="fatigue" stroke="var(--v6-danger)" strokeWidth={1.5} dot={false} connectNulls={false} isAnimationActive={false} /><Line dataKey="hunger" stroke="var(--v6-warning)" strokeWidth={1.5} dot={false} connectNulls={false} isAnimationActive={false} /><Line dataKey="leg" stroke="var(--v6-chart-leg)" strokeWidth={1.5} dot={false} connectNulls={false} isAnimationActive={false} /></ComposedChart></ResponsiveContainer>
       </ChartCard>
 
       <DataTable data={data} source={model.trendSource} />

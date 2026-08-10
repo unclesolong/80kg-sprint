@@ -183,6 +183,27 @@ describe('update integrity session payload', () => {
     expect(readUpdateIntegritySessionPayload(storage)).toBeUndefined()
   })
 
+  it('fails safe when session storage reads or clears are blocked', () => {
+    const blockedRead = {
+      getItem: (_key: string): string | null => { throw new DOMException('blocked', 'SecurityError') }
+    }
+    const blockedClear = {
+      removeItem: (_key: string): void => { throw new DOMException('blocked', 'SecurityError') }
+    }
+
+    expect(readUpdateIntegritySessionPayload(blockedRead)).toBeUndefined()
+    expect(() => clearUpdateIntegritySessionPayload(blockedClear)).not.toThrow()
+  })
+
+  it('still rejects an update snapshot when session storage writes are blocked', async () => {
+    const blockedWrite = {
+      setItem: (_key: string, _value: string): void => { throw new DOMException('blocked', 'SecurityError') }
+    }
+    const payload = await createUpdateIntegritySessionPayload(fixture())
+
+    expect(() => writeUpdateIntegritySessionPayload(blockedWrite, payload)).toThrowError(DOMException)
+  })
+
   it('classifies missing, matching and changed post-update data', async () => {
     const logs = fixture()
     const previous = await createUpdateIntegritySessionPayload(logs)

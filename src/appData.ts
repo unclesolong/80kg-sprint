@@ -11,6 +11,7 @@ export const loadApplicationData = async <TLegacy>(
   try {
     return { legacy, planner: await loadPlanner(), plannerError: undefined }
   } catch (error) {
-    return { legacy, planner: emptyPlannerSnapshot(), plannerError: error instanceof Error ? error.message : 'Planner DB 無法開啟' }
+    const message = error instanceof Error ? error.message.trim() : ''
+    return { legacy, planner: emptyPlannerSnapshot(), plannerError: message || 'Planner DB 無法開啟' }
   }
 }

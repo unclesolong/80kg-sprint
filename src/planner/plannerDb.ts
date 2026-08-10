@@ -7,6 +7,16 @@ export const PLANNER_DB_VERSION = 1
 export const PLANNER_STORES = ['profile', 'safety', 'plans', 'planVersions', 'weeklyReviews', 'aiRuns', 'consents', 'foodMetadata', 'drafts', 'uiPreferences'] as const
 const PLANNER_MARKER = '80kg-sprint-planner-created'
 
+/** Legacy compatibility marker; it must never reverse a committed IDB write. */
+const rememberPlannerDatabase = (): void => {
+  try {
+    globalThis.localStorage?.setItem(PLANNER_MARKER, '1')
+  } catch {
+    // IndexedDB is authoritative. Storage access may be blocked in private or
+    // restricted browser contexts, so a marker failure is deliberately ignored.
+  }
+}
+
 let plannerDbPromise: ReturnType<typeof openDB> | undefined
 
 const openPlannerDb = () => {
@@ -22,13 +32,61 @@ const openPlannerDb = () => {
   return plannerDbPromise
 }
 
-export const plannerDatabaseExists = async () => {
-  if (typeof indexedDB === 'undefined') return false
-  if (typeof indexedDB.databases === 'function') {
-    const databases = await indexedDB.databases()
-    return databases.some((database) => database.name === PLANNER_DB_NAME)
+/**
+ * Safely probes older browsers that do not expose indexedDB.databases().
+ * Opening a missing DB triggers upgradeneeded; aborting that versionchange
+ * transaction prevents an empty database from being created during startup.
+ */
+const probePlannerDatabaseExists = (databaseFactory: IDBFactory): Promise<boolean> => new Promise((resolve, reject) => {
+  const request = databaseFactory.open(PLANNER_DB_NAME)
+  let missingDatabase = false
+  let settled = false
+  const finish = (value: boolean) => {
+    if (settled) return
+    settled = true
+    resolve(value)
   }
-  return typeof localStorage !== 'undefined' && localStorage.getItem(PLANNER_MARKER) === '1'
+  const fail = (error: unknown) => {
+    if (settled) return
+    settled = true
+    reject(error)
+  }
+
+  request.onupgradeneeded = () => {
+    missingDatabase = true
+    try {
+      request.transaction?.abort()
+    } catch (error) {
+      fail(error)
+    }
+  }
+  request.onsuccess = () => {
+    try {
+      request.result.close()
+      finish(true)
+    } catch (error) {
+      fail(error)
+    }
+  }
+  request.onerror = () => {
+    if (missingDatabase) finish(false)
+    else fail(request.error ?? new Error('Planner database probe failed'))
+  }
+  request.onblocked = () => fail(new Error('Planner database probe was blocked'))
+})
+
+export const plannerDatabaseExists = async () => {
+  const databaseFactory = globalThis.indexedDB
+  if (!databaseFactory) return false
+  if (typeof databaseFactory.databases === 'function') {
+    try {
+      const databases = await databaseFactory.databases()
+      return databases.some((database) => database.name === PLANNER_DB_NAME)
+    } catch {
+      // Fall through to the non-creating probe when enumeration is blocked.
+    }
+  }
+  return probePlannerDatabaseExists(databaseFactory)
 }
 
 export const loadPlannerSnapshot = async (): Promise<PlannerSnapshot> => {
@@ -60,21 +118,37 @@ export const saveInitialPlannerBundle = async (profile: UserProfile, safety: Saf
   if (consent) writes.push(tx.objectStore('consents').put(consent))
   await Promise.all(writes)
   await tx.done
-  if (typeof localStorage !== 'undefined') localStorage.setItem(PLANNER_MARKER, '1')
+  rememberPlannerDatabase()
 }
 
-export const savePlanVersion = async (version: PlanVersion) => (await openPlannerDb()).put('planVersions', version)
-export const saveWeeklyReview = async (review: WeeklyReview) => (await openPlannerDb()).put('weeklyReviews', review)
-export const savePlannerConsent = async (consent: PlannerConsent) => {
-  const result = await (await openPlannerDb()).put('consents', consent)
-  if (typeof localStorage !== 'undefined') localStorage.setItem(PLANNER_MARKER, '1')
+export const savePlanVersion = async (version: PlanVersion) => {
+  const result = await (await openPlannerDb()).put('planVersions', version)
+  rememberPlannerDatabase()
   return result
 }
-export const saveAIRun = async (run: AIRun) => (await openPlannerDb()).put('aiRuns', run)
-export const clearAIRuns = async () => (await openPlannerDb()).clear('aiRuns')
+export const saveWeeklyReview = async (review: WeeklyReview) => {
+  const result = await (await openPlannerDb()).put('weeklyReviews', review)
+  rememberPlannerDatabase()
+  return result
+}
+export const savePlannerConsent = async (consent: PlannerConsent) => {
+  const result = await (await openPlannerDb()).put('consents', consent)
+  rememberPlannerDatabase()
+  return result
+}
+export const saveAIRun = async (run: AIRun) => {
+  const result = await (await openPlannerDb()).put('aiRuns', run)
+  rememberPlannerDatabase()
+  return result
+}
+export const clearAIRuns = async () => {
+  const result = await (await openPlannerDb()).clear('aiRuns')
+  rememberPlannerDatabase()
+  return result
+}
 export const saveFoodMetadata = async (metadata: FoodMetadata) => {
   const result = await (await openPlannerDb()).put('foodMetadata', metadata)
-  if (typeof localStorage !== 'undefined') localStorage.setItem(PLANNER_MARKER, '1')
+  rememberPlannerDatabase()
   return result
 }
 
@@ -93,5 +167,5 @@ export const replacePlannerSnapshot = async (snapshot: PlannerSnapshot) => {
     ...snapshot.foodMetadata.map((item) => tx.objectStore('foodMetadata').put(item))
   ])
   await tx.done
-  if (typeof localStorage !== 'undefined') localStorage.setItem(PLANNER_MARKER, '1')
+  rememberPlannerDatabase()
 }

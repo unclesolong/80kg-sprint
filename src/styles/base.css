@@ -1,6 +1,77 @@
-html { overflow-x: clip; }
-body { overflow-x: clip; }
-input, select, textarea { font-size: max(16px, 1rem); }
+html,
+body,
+#root,
+.app-shell {
+  min-height: 100%;
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+html,
+body {
+  overflow-x: clip;
+}
+
+body {
+  min-height: 100dvh;
+  background-color: var(--bg);
+  background-image: radial-gradient(circle at 50% -20%, color-mix(in srgb, var(--green), transparent 90%), transparent 36rem);
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+main,
+.page,
+.onboarding,
+.loading {
+  color: inherit;
+}
+
+input,
+select,
+textarea,
+button {
+  color: var(--text);
+}
+
+input,
+select,
+textarea {
+  background-color: var(--card-2);
+  color: var(--text);
+  -webkit-text-fill-color: var(--text);
+  caret-color: var(--text);
+  opacity: 1;
+  font-size: max(16px, 1rem);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+  -webkit-text-fill-color: var(--muted);
+  opacity: 1;
+}
+
+input[type='date'],
+input[type='time'] {
+  color-scheme: inherit;
+}
+
+input[type='date']::-webkit-date-and-time-value,
+input[type='time']::-webkit-date-and-time-value {
+  color: var(--text);
+  -webkit-text-fill-color: var(--text);
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled,
+button:disabled {
+  opacity: .52;
+}
+
 .health-card { background: var(--v6-surface-1, var(--surface)); border: 1px solid var(--v6-border, var(--border)); border-radius: 18px; box-shadow: none; }
 .planner-stack-page, .plan-hero, .plan-metric-grid, .planner-dinner-card, .planner-step-card { font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) {

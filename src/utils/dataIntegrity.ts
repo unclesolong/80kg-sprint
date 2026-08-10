@@ -204,11 +204,22 @@ export function writeUpdateIntegritySessionPayload(storage: StorageWriter, paylo
 }
 
 export function readUpdateIntegritySessionPayload(storage: StorageReader): UpdateIntegritySessionPayload | undefined {
-  return parseUpdateIntegritySessionPayload(storage.getItem(UPDATE_INTEGRITY_SESSION_KEY))
+  try {
+    return parseUpdateIntegritySessionPayload(storage.getItem(UPDATE_INTEGRITY_SESSION_KEY))
+  } catch {
+    // The integrity marker is optional during normal app startup. Browsers can
+    // deny session storage while IndexedDB remains available, so a blocked read
+    // must never turn a successful data load into an application load failure.
+    return undefined
+  }
 }
 
 export function clearUpdateIntegritySessionPayload(storage: StorageRemover): void {
-  storage.removeItem(UPDATE_INTEGRITY_SESSION_KEY)
+  try {
+    storage.removeItem(UPDATE_INTEGRITY_SESSION_KEY)
+  } catch {
+    // Clearing a best-effort session marker must not interrupt recovery UI.
+  }
 }
 
 export async function compareUpdateIntegritySessionPayload(

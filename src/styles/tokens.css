@@ -1,11 +1,13 @@
-:root {
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
   --v6-bg: #090c0a;
   --v6-surface-1: #121714;
   --v6-surface-2: #171d19;
   --v6-surface-3: #1d241f;
   --v6-text: #f5f7f5;
   --v6-text-secondary: #a2aca5;
-  --v6-text-tertiary: #747f78;
+  --v6-text-tertiary: #7f8a82;
   --v6-border: rgba(244, 247, 244, .09);
   --v6-border-strong: rgba(244, 247, 244, .15);
   --v6-success: #65d38e;
@@ -17,6 +19,9 @@
   --v6-warning-soft: rgba(240, 191, 99, .12);
   --v6-danger: #ef6d74;
   --v6-danger-soft: rgba(239, 109, 116, .12);
+  --v6-chart-leg: #d594f5;
+  --on-primary: #082113;
+  --on-danger: #22090b;
   --v6-shadow-float: 0 18px 50px rgba(0, 0, 0, .32);
   --v6-space-1: 4px;
   --v6-space-2: 8px;
@@ -25,20 +30,33 @@
   --v6-space-5: 20px;
   --v6-space-6: 24px;
   --v6-space-7: 32px;
-  --surface: var(--card);
-  --surface-soft: var(--card-2);
-  --border: var(--line);
-  --primary: var(--green);
-  --primary-strong: #0f7047;
-  --primary-soft: var(--green-deep);
-  --info: var(--blue);
-  --info-soft: color-mix(in srgb, var(--blue), transparent 88%);
-  --warning: var(--yellow);
-  --warning-soft: color-mix(in srgb, var(--yellow), transparent 90%);
-  --danger: var(--red);
-  --danger-soft: color-mix(in srgb, var(--red), transparent 90%);
+  --bg: var(--v6-bg);
+  --card: var(--v6-surface-1);
+  --card-2: var(--v6-surface-2);
+  --text: var(--v6-text);
+  --muted: var(--v6-text-secondary);
+  --line: var(--v6-border);
+  --grid: var(--v6-border);
+  --green: var(--v6-success);
+  --green-deep: var(--v6-success-soft);
+  --yellow: var(--v6-warning);
+  --red: var(--v6-danger);
+  --blue: var(--v6-info);
+  --shadow: var(--v6-shadow-float);
+  --surface: var(--v6-surface-1);
+  --surface-soft: var(--v6-surface-2);
+  --border: var(--v6-border);
+  --primary: var(--v6-success);
+  --primary-strong: var(--v6-success-strong);
+  --primary-soft: var(--v6-success-soft);
+  --info: var(--v6-info);
+  --info-soft: var(--v6-info-soft);
+  --warning: var(--v6-warning);
+  --warning-soft: var(--v6-warning-soft);
+  --danger: var(--v6-danger);
+  --danger-soft: var(--v6-danger-soft);
   --shadow-card: 0 8px 28px color-mix(in srgb, var(--text), transparent 93%);
-  --shadow-float: 0 18px 50px rgba(18, 38, 27, .16);
+  --shadow-float: var(--v6-shadow-float);
   --radius-sm: 12px;
   --radius-md: 16px;
   --radius-lg: 20px;
@@ -54,22 +72,27 @@
 }
 
 :root[data-theme='light'] {
+  color-scheme: light;
   --v6-bg: #f3f5f2;
   --v6-surface-1: #fff;
   --v6-surface-2: #edf1ed;
   --v6-surface-3: #e5ebe6;
   --v6-text: #172019;
-  --v6-text-secondary: #667169;
-  --v6-text-tertiary: #7d8981;
+  --v6-text-secondary: #5f6b63;
+  --v6-text-tertiary: #748077;
   --v6-border: rgba(23, 32, 25, .1);
   --v6-border-strong: rgba(23, 32, 25, .17);
-  --v6-success: #20864a;
-  --v6-success-strong: #126d39;
-  --v6-success-soft: rgba(32, 134, 74, .1);
-  --v6-info: #2779c8;
-  --v6-info-soft: rgba(39, 121, 200, .1);
-  --v6-warning: #ad7119;
-  --v6-warning-soft: rgba(173, 113, 25, .1);
-  --v6-danger: #c83e47;
-  --v6-danger-soft: rgba(200, 62, 71, .1);
+  --v6-success: #126d39;
+  --v6-success-strong: #0d5b2f;
+  --v6-success-soft: rgba(18, 109, 57, .1);
+  --v6-info: #155d9e;
+  --v6-info-soft: rgba(21, 93, 158, .1);
+  --v6-warning: #765000;
+  --v6-warning-soft: rgba(118, 80, 0, .1);
+  --v6-danger: #a52b34;
+  --v6-danger-soft: rgba(165, 43, 52, .1);
+  --v6-chart-leg: #75328f;
+  --on-primary: #ffffff;
+  --on-danger: #ffffff;
+  --v6-shadow-float: 0 18px 50px rgba(23, 32, 25, .14);
 }

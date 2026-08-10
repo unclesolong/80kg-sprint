@@ -268,7 +268,7 @@ export const buildTodayDashboardModel = ({
   return {
     challenge: {
       id: plan?.id ?? `sprint-${settings.startDate}`,
-      title: plan?.name ?? '80KG Sprint',
+      title: plan?.name ?? '減脂追蹤',
       startDate,
       endDate,
       dayNumber,

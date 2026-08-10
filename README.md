@@ -1,4 +1,4 @@
-# 80KG Sprint
+# 減脂追蹤（原 80KG Sprint）
 
 一個以 iPhone 為主、可長期使用的減脂規劃與健康紀錄 PWA。除了既有 7 天 Sprint，使用者也能建立有安全邊界與版本歷史的長期計畫、完成每週檢討，以及用批次飲食流程記錄營養。
 
@@ -113,14 +113,14 @@ https://<USERNAME>.github.io/80kg-sprint/
    git init
    git branch -M main
    git add .
-   git commit -m "Build 80KG Sprint PWA"
+   git commit -m "Build 減脂追蹤 PWA"
    git remote add origin https://github.com/<USERNAME>/80kg-sprint.git
    git push -u origin main
    ```
 
 3. 開啟 GitHub repository 的 **Settings → Pages**。
 4. 在 **Build and deployment** 的 **Source** 選擇 **GitHub Actions**。
-5. 開啟 **Actions** 頁面，等待 `Deploy 80KG Sprint to GitHub Pages` 顯示成功。工作流程也可由 **Run workflow** 手動執行。
+5. 開啟 **Actions** 頁面，等待 `Deploy 減脂追蹤 to GitHub Pages` 顯示成功。工作流程也可由 **Run workflow** 手動執行。
 6. 開啟 `https://<USERNAME>.github.io/80kg-sprint/`。首次部署有時需要幾分鐘生效。
 
 `.github/workflows/deploy.yml` 會在 push 到 `main` 後自動執行前端與 Worker 測試、Worker typecheck 及 production build，再使用 GitHub 官方 Pages Actions 上傳並部署 `dist`。Worker 是獨立服務，不會由 Pages workflow 自動部署；必須先依 `api-worker/README.md` 設定 secrets 並部署，確認 `/v1/health` 後，才在 GitHub Actions repository variables 設定 `VITE_AI_ENABLED=true` 與 `VITE_AI_API_BASE_URL`。

@@ -136,6 +136,12 @@ describe('inclusive challenge dates', () => {
 })
 
 describe('today dashboard model', () => {
+  it('uses the neutral app brand when no long-term plan has a name', () => {
+    const log = completeLog()
+    const model = buildTodayDashboardModel({ today: log.date, log, logs: [log], settings: defaultSettings })
+    expect(model.challenge.title).toBe('減脂追蹤')
+  })
+
   it('uses Planner min/center/max and the maximum for remaining calories', () => {
     const model = build(completeLog())
     expect(model.calories).toMatchObject({

@@ -11,7 +11,7 @@
 .planner-progress li { min-width: 0; color: var(--muted); font-size: .62rem; text-align: center; }
 .planner-progress li span { display: grid; place-items: center; width: 22px; height: 22px; margin: 0 auto 4px; border: 1px solid var(--line); border-radius: 50%; background: var(--card); font-size: .65rem; }
 .planner-progress li.active { color: var(--text); font-weight: 750; }
-.planner-progress li.active span { color: #fff; border-color: var(--primary); background: var(--primary); }
+.planner-progress li.active span { color: var(--on-primary); border-color: var(--primary); background: var(--primary); }
 .planner-step-card { padding: clamp(16px, 4.6vw, 24px); }
 .planner-step-card > header { margin-bottom: 18px; }
 .planner-step-card > header > span { color: var(--green); font-size: .7rem; font-weight: 800; letter-spacing: .12em; }
@@ -162,7 +162,7 @@
 .planner-settings-card .action-list button.primary,
 .ai-consent-dialog > footer button.primary {
   border-color: transparent;
-  color: #082113;
+  color: var(--on-primary);
   background: var(--green);
 }
 

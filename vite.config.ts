@@ -18,9 +18,9 @@ export default defineConfig(({ command }) => {
         injectRegister: null,
         manifest: {
           id: base,
-          name: '80KG Sprint 減脂規劃',
-          short_name: '80KG Sprint',
-          description: '長期減脂規劃、每日健康紀錄與每週回顧；核心資料保留在你的裝置。',
+          name: '減脂追蹤',
+          short_name: '減脂追蹤',
+          description: '每日體重、飲食、活動與減脂趨勢追蹤；核心資料保留在你的裝置。',
           lang: 'zh-TW',
           start_url: base,
           scope: base,

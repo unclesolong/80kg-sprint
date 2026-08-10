@@ -98,7 +98,7 @@ export function TodayPage({ today, log, logs, settings, plan, planVersion, lates
       <div className="advice-list secondary-advice">{advice.slice(0, 2).map((item, index) => <article className={`advice ${item.level}`} key={`${item.text}-${index}`}><i /><p>{item.text}</p></article>)}</div>
     </div></details>
 
-    {!plan && <button type="button" className="planner-entry-card health-card" onClick={onOpenPlanner}><span>新增功能</span><strong>建立長期減脂計畫</strong><small>以既有設定與最近晨重預填；確認前不會寫入新資料庫。</small><ChevronRight /></button>}
+    {!plan && !plannerError && <button type="button" className="planner-entry-card health-card" onClick={onOpenPlanner}><span>新增功能</span><strong>建立長期減脂計畫</strong><small>以既有設定與最近晨重預填；確認前不會寫入新資料庫。</small><ChevronRight /></button>}
     {planVersion && <PlanInsights version={planVersion} latestReview={latestWeeklyReview} onOpenWeeklyReview={onOpenWeeklyReview} />}
 
     {waterToast && <div className="undo-toast" role="status"><span>已加入 {waterToast.amount} ml 白開水</span><button type="button" onClick={() => { onQuickAdd({ waterMl: waterToast.previous }); setWaterToast(undefined) }}>復原</button></div>}

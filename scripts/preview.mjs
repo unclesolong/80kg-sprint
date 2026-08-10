@@ -34,5 +34,5 @@ createServer((request, response) => {
   response.writeHead(200, { 'Content-Type': contentType, 'Cache-Control': 'no-cache' })
   createReadStream(file).pipe(response)
 }).listen(port, '127.0.0.1', () => {
-  console.log(`80KG Sprint production preview: http://127.0.0.1:${port}${base}`)
+  console.log(`減脂追蹤 production preview: http://127.0.0.1:${port}${base}`)
 })

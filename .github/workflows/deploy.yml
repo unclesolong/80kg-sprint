@@ -1,4 +1,4 @@
-name: Deploy 80KG Sprint to GitHub Pages
+name: Deploy 減脂追蹤 to GitHub Pages
 
 on:
   push:

@@ -6,12 +6,115 @@
     <meta name="theme-color" content="#0a0d0c" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="80KG Sprint" />
+    <meta name="apple-mobile-web-app-title" content="減脂追蹤" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
-    <title>80KG Sprint</title>
+    <title>減脂追蹤</title>
+    <script>
+      (() => {
+        const KEY = 'fat-loss-ui-theme-v1'
+        let theme = 'dark'
+
+        try {
+          theme = localStorage.getItem(KEY) === 'light' ? 'light' : 'dark'
+        } catch {
+          theme = 'dark'
+        }
+
+        document.documentElement.dataset.theme = theme
+        document.documentElement.style.colorScheme = theme
+        const themeMeta = document.querySelector('meta[name="theme-color"]')
+        if (themeMeta) themeMeta.setAttribute('content', theme === 'light' ? '#f3f5f2' : '#0a0d0c')
+      })()
+    </script>
+    <style id="critical-theme">
+      :root {
+        color-scheme: dark;
+        background-color: #0a0d0c;
+        color: #f4f7f4;
+      }
+
+      html,
+      body,
+      #root {
+        min-height: 100%;
+        margin: 0;
+        background-color: #0a0d0c;
+        color: #f4f7f4;
+      }
+
+      #root {
+        min-height: 100dvh;
+      }
+
+      html[data-theme='light'] {
+        color-scheme: light;
+        background-color: #f3f5f2;
+        color: #172019;
+      }
+
+      html[data-theme='light'] body,
+      html[data-theme='light'] #root {
+        background-color: #f3f5f2;
+        color: #172019;
+      }
+
+      .boot-fallback {
+        min-height: 100dvh;
+        display: grid;
+        place-content: center;
+        gap: 12px;
+        padding: 24px;
+        box-sizing: border-box;
+        text-align: center;
+        font: 600 16px/1.5 -apple-system, BlinkMacSystemFont, sans-serif;
+      }
+
+      .boot-fallback__mark {
+        width: 72px;
+        height: 72px;
+        margin: 0 auto;
+        border-radius: 22px;
+        display: grid;
+        place-items: center;
+        background: #65d38e;
+        color: #082113;
+      }
+
+      .boot-fallback__mark svg {
+        width: 42px;
+        height: 42px;
+      }
+
+      .boot-fallback strong {
+        display: block;
+        font-size: 18px;
+      }
+
+      .boot-fallback p {
+        margin: 4px 0 0;
+        font-weight: 500;
+        opacity: .82;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot-fallback" role="status" aria-live="polite">
+        <div class="boot-fallback__mark" aria-hidden="true">
+          <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M14 18 C22 18 23 29 32 30 C39 31 42 42 50 43" stroke="currentColor" stroke-width="5" stroke-linecap="round" />
+            <circle cx="14" cy="18" r="4" fill="currentColor" />
+            <circle cx="32" cy="30" r="4" fill="currentColor" />
+            <circle cx="50" cy="43" r="7" fill="#65d38e" stroke="currentColor" stroke-width="4" />
+            <path d="m47 43 2 2 4-5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </div>
+        <div>
+          <strong>減脂追蹤</strong>
+          <p>正在讀取此裝置的紀錄…</p>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

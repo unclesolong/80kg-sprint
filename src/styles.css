@@ -59,8 +59,8 @@ h3 { margin-bottom: 6px; }
 .page-header input[type='date'] { width: 150px; }
 
 .offline-banner, .update-banner { position: fixed; z-index: 30; top: env(safe-area-inset-top); left: 50%; transform: translateX(-50%); width: min(calc(100% - 28px), 720px); padding: 10px 14px; border-radius: 0 0 14px 14px; text-align: center; font-size: .82rem; font-weight: 700; border: 0; }
-.offline-banner { background: var(--yellow); color: #241900; }
-.update-banner { background: var(--green); color: #06200f; }
+.offline-banner { background: var(--yellow); color: var(--on-primary); }
+.update-banner { background: var(--green); color: var(--on-primary); }
 .install-hint { display: flex; align-items: center; justify-content: center; gap: 12px; background: var(--green-deep); color: var(--text); padding: calc(8px + env(safe-area-inset-top)) 16px 8px; font-size: .8rem; border-bottom: 1px solid var(--line); }
 .install-hint button { border: 0; background: transparent; font-size: 1.3rem; min-width: 44px; }
 
@@ -290,9 +290,9 @@ textarea { resize: vertical; line-height: 1.5; }
 .report-action strong, .report-action small { display: block; }
 .report-action strong { font-size: .82rem; }
 .report-action small { margin-top: 4px; color: var(--muted); font-size: .66rem; font-weight: 500; }
-.report-action.primary > span { background: rgba(8, 33, 19, .15); color: #082113; }
+.report-action.primary > span { background: rgba(8, 33, 19, .15); color: var(--on-primary); }
 .report-action:disabled { opacity: .55; }
-.primary { background: var(--green); color: #082113; border-color: transparent; }
+.primary { background: var(--green); color: var(--on-primary); border-color: transparent; }
 .primary:disabled { opacity: .45; cursor: not-allowed; }
 .danger { color: var(--red); border-color: color-mix(in srgb, var(--red), transparent 45%) !important; background: transparent !important; }
 .status-message { font-size: .75rem; line-height: 1.5; color: var(--yellow); margin: 12px 0 0; }
@@ -302,7 +302,7 @@ textarea { resize: vertical; line-height: 1.5; }
 .health-note { padding: 8px 4px 0; }
 
 .onboarding { min-height: 100vh; width: min(540px, 100%); margin: 0 auto; padding: calc(36px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) calc(30px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left)); display: flex; flex-direction: column; justify-content: center; }
-.onboarding-mark, .pulse { width: 82px; height: 82px; border-radius: 24px; display: grid; place-items: center; background: var(--green); color: #072012; font-size: 2.4rem; font-weight: 800; letter-spacing: -.08em; margin-bottom: 22px; }
+.onboarding-mark, .pulse { width: 82px; height: 82px; border-radius: 24px; display: grid; place-items: center; background: var(--green); color: var(--on-primary); font-size: 2.4rem; font-weight: 800; letter-spacing: -.08em; margin-bottom: 22px; }
 .onboarding .lede { color: var(--muted); line-height: 1.6; margin: 15px 0 24px; }
 .onboarding-form { padding: 10px 18px 18px; }
 .onboarding-form > label { display: grid; grid-template-columns: 1fr minmax(100px, 145px) auto; align-items: center; gap: 8px; min-height: 62px; border-bottom: 1px solid var(--line); font-size: .8rem; }
@@ -389,7 +389,7 @@ textarea { resize: vertical; line-height: 1.5; }
 .food-shortcuts button strong, .food-shortcuts button small { display: block; overflow: hidden; text-overflow: ellipsis; }
 .food-shortcuts button small { margin-top: 3px; color: var(--muted); font-size: .58rem; }
 .undo-toast { position: fixed; z-index: 50; left: 50%; bottom: calc(92px + env(safe-area-inset-bottom)); width: min(360px, calc(100% - 28px)); transform: translateX(-50%); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px 11px 16px; border: 1px solid var(--line); border-radius: 15px; background: var(--text); color: var(--bg); box-shadow: var(--shadow); font-size: .74rem; font-weight: 700; }
-.undo-toast button { min-height: 34px; border: 0; border-radius: 9px; background: var(--green); color: #082113; padding: 5px 10px; font-weight: 900; }
+.undo-toast button { min-height: 34px; border: 0; border-radius: 9px; background: var(--green); color: var(--on-primary); padding: 5px 10px; font-weight: 900; }
 .undo-toast span small { display: block; margin-top: 2px; font-size: .72rem; font-weight: 650; opacity: .72; }
 .more-data { overflow: hidden; }
 .more-data > summary, .settings-details > summary, .advanced-trends > summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px; cursor: pointer; font-size: .78rem; font-weight: 800; }
@@ -623,7 +623,7 @@ input, select, textarea { font-size: 1rem; }
 .copy-toast, .finalize-success { position: fixed; z-index: 55; left: 50%; bottom: calc(92px + env(safe-area-inset-bottom)); transform: translateX(-50%); animation: toast-in 180ms ease-out; }
 .copy-toast { width: fit-content; max-width: calc(100% - 28px); padding: 11px 16px; border-radius: 13px; background: var(--text); color: var(--bg); font-size: .8125rem; font-weight: 750; }
 .finalize-success { width: min(380px, calc(100% - 28px)); display: grid; justify-items: center; gap: 7px; padding: 18px; border: 1px solid color-mix(in srgb, var(--green), transparent 45%); border-radius: 20px; background: var(--card); box-shadow: 0 20px 50px rgba(0,0,0,.32); text-align: center; }
-.finalize-success > svg { width: 34px; height: 34px; padding: 7px; border-radius: 50%; background: var(--green); color: #082113; animation: check-pop 200ms ease-out; }
+.finalize-success > svg { width: 34px; height: 34px; padding: 7px; border-radius: 50%; background: var(--green); color: var(--on-primary); animation: check-pop 200ms ease-out; }
 .finalize-success strong { font-size: 1rem; }
 .finalize-success span { color: var(--muted); font-size: .75rem; }
 
@@ -865,7 +865,7 @@ input, select, textarea { font-size: 1rem; }
 .food-ai-text textarea { width: 100%; min-height: 96px; padding: 10px 11px; resize: vertical; }
 .food-ai-actions { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 8px; }
 .food-ai-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; min-height: 46px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--card-2); font-size: .75rem; font-weight: 800; }
-.food-ai-actions button.primary { border-color: transparent; color: #082113; background: var(--green); }
+.food-ai-actions button.primary { border-color: transparent; color: var(--on-primary); background: var(--green); }
 .food-ai-actions svg { width: 17px; height: 17px; }
 .parsed-food-list, .food-candidate-list { display: grid; gap: 8px; min-width: 0; }
 .food-candidate-heading { margin: 2px 0 -3px; color: var(--muted); font-size: .75rem; }

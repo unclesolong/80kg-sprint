@@ -95,7 +95,7 @@ export function GrowthPage({
   return <section className="page growth-page" aria-labelledby="growth-page-title">
     <header className="growth-page__header">
       <p className="eyebrow">微光棲地</p>
-      <h1 id="growth-page-title">培育與成就</h1>
+      <h1 id="growth-page-title" tabIndex={-1}>培育與成就</h1>
       <p>每天只要完成生活紀錄與安全任務，就能讓潤光逐步成長。</p>
       <ol className="growth-page__guide" aria-label="潤光培育方式">
         <li><span>1</span><strong>留下紀錄</strong></li>

@@ -38,6 +38,8 @@ import { validateBackup } from './validation'
 import { CoreWriteCoordinator } from './coreWriteCoordinator'
 import { createEmptyGrowthSnapshot, loadGrowthSnapshot, replaceGrowthSnapshot, saveGrowthImprint, settleGrowthDates, type GrowthAffinity, type GrowthSnapshot } from './growth'
 import { buildGrowthPageView, runGrowthSync, selectGrowthSettlementDates } from './viewModels/growthAppIntegration'
+import { GrowthNotification } from './components/GrowthNotification'
+import { dismissGrowthNotification as advanceGrowthNotificationQueue, enqueueGrowthNotification, selectGrowthNotification, type GrowthNotification as GrowthNotificationModel, type GrowthNotificationCause, type GrowthNotificationQueueState } from './viewModels/growthNotification'
 
 const TrendsPage = lazy(() => import('./pages/TrendsPage').then((module) => ({ default: module.TrendsPage })))
 const GrowthPage = lazy(() => import('./pages/GrowthPage').then((module) => ({ default: module.GrowthPage })))
@@ -126,12 +128,31 @@ export default function App() {
   const [growthSnapshot, setGrowthSnapshot] = useState<GrowthSnapshot>(() => createEmptyGrowthSnapshot())
   const growthSnapshotRef = useRef(growthSnapshot)
   const growthSyncSequence = useRef(0)
+  const growthEpochRef = useRef(0)
+  const growthNotificationBaselineReadyRef = useRef(false)
   const growthOperationQueue = useRef<Promise<void>>(Promise.resolve())
   const growthBulkMutationActive = useRef(false)
   const [growthSyncing, setGrowthSyncing] = useState(false)
   const [growthError, setGrowthError] = useState<string>()
   const [selectedGrowthImprint, setSelectedGrowthImprint] = useState<GrowthAffinity>()
   const [growthBoundaryKey, setGrowthBoundaryKey] = useState(0)
+  const [growthNotification, setGrowthNotification] = useState<GrowthNotificationModel>()
+  const growthNotificationQueueRef = useRef<GrowthNotificationQueueState>({})
+
+  const applyGrowthNotificationQueue = useCallback((next: GrowthNotificationQueueState) => {
+    growthNotificationQueueRef.current = next
+    setGrowthNotification(next.visible)
+  }, [])
+
+  const clearGrowthNotifications = useCallback(() => applyGrowthNotificationQueue({}), [applyGrowthNotificationQueue])
+
+  const dismissGrowthNotification = useCallback(() => {
+    applyGrowthNotificationQueue(advanceGrowthNotificationQueue(growthNotificationQueueRef.current, Date.now()))
+  }, [applyGrowthNotificationQueue])
+
+  const queueGrowthNotification = useCallback((incoming: GrowthNotificationModel) => {
+    applyGrowthNotificationQueue(enqueueGrowthNotification(growthNotificationQueueRef.current, incoming, Date.now()))
+  }, [applyGrowthNotificationQueue])
 
   const enqueueGrowthOperation = useCallback(<T,>(operation: () => Promise<T>): Promise<T> => {
     const queued = growthOperationQueue.current.then(operation, operation)
@@ -139,17 +160,33 @@ export default function App() {
     return queued
   }, [])
 
-  const runGrowthOperation = useCallback(async (operation: () => Promise<GrowthSnapshot>) => {
+  const runGrowthOperation = useCallback(async (
+    operation: () => Promise<GrowthSnapshot>,
+    cause: GrowthNotificationCause = 'user_write'
+  ) => {
     const sequence = ++growthSyncSequence.current
+    const epoch = growthEpochRef.current
     setGrowthSyncing(true)
     const result = await runGrowthSync(growthSnapshotRef.current, () => enqueueGrowthOperation(operation))
-    if (growthSyncSequence.current !== sequence) return !result.error
+    if (growthSyncSequence.current !== sequence || growthEpochRef.current !== epoch) return !result.error
+    const previousSnapshot = growthSnapshotRef.current
+    if (!result.error) {
+      if (growthNotificationBaselineReadyRef.current && !growthBulkMutationActive.current) {
+        const notification = selectGrowthNotification(previousSnapshot, result.snapshot, cause)
+        if (notification) queueGrowthNotification(notification)
+        else if (result.snapshot.companion.xp < previousSnapshot.companion.xp) clearGrowthNotifications()
+      } else {
+        // The first accepted snapshot is a silent hydration baseline. This
+        // prevents persisted XP from replaying as a fresh reward on startup.
+        growthNotificationBaselineReadyRef.current = true
+      }
+    }
     growthSnapshotRef.current = result.snapshot
     setGrowthSnapshot(result.snapshot)
     setGrowthError(result.error)
     setGrowthSyncing(false)
     return !result.error
-  }, [enqueueGrowthOperation])
+  }, [clearGrowthNotifications, enqueueGrowthOperation, queueGrowthNotification])
 
   const syncGrowth = useCallback((source?: {
     logs?: readonly DailyLog[]
@@ -157,7 +194,7 @@ export default function App() {
     planner?: PlannerSnapshot
     customFoodCount?: number
     modifiedDate?: string
-  }) => {
+  }, cause: GrowthNotificationCause = 'user_write') => {
     if (growthBulkMutationActive.current) return Promise.resolve(false)
     return runGrowthOperation(() => {
       const sourceLogs = source?.logs ?? persistedLogsRef.current
@@ -178,7 +215,7 @@ export default function App() {
         modifiedDate: source?.modifiedDate
       })
       return settleGrowthDates(input, settlementDates)
-    })
+    }, cause)
   }, [runGrowthOperation, today])
 
   useEffect(() => {
@@ -195,7 +232,7 @@ export default function App() {
       setPlanner(plannerData)
       setPlannerError(loadError)
       setLoaded(true)
-      void syncGrowth({ logs: legacy.logs, settings: legacy.settings, planner: plannerData, customFoodCount: legacy.foods.length })
+      void syncGrowth({ logs: legacy.logs, settings: legacy.settings, planner: plannerData, customFoodCount: legacy.foods.length }, 'startup')
       let previous: ReturnType<typeof readUpdateIntegritySessionPayload>
       try {
         previous = readUpdateIntegritySessionPayload(window.sessionStorage)
@@ -352,14 +389,18 @@ export default function App() {
     void syncGrowth({ customFoodCount: nextFoods.length })
   })
   const importData = async (nextSettings: ChallengeSettings, nextLogs: DailyLog[], nextFoods: CustomFood[], nextGrowth?: GrowthSnapshot) => {
+    if (growthBulkMutationActive.current || coreWrites.current.isBulkMutationActive) throw new Error('data replacement already in progress')
     const migratedSettings = migrateSettings(nextSettings)
     const migratedLogs = nextLogs.map(migrateLog)
-    await coreWrites.current.runBulk(async () => {
-      growthBulkMutationActive.current = true
-      const previousSettings = persistedSettingsRef.current
-      const previousLogs = persistedLogsRef.current
-      const previousFoods = persistedFoodsRef.current
-      try {
+    growthBulkMutationActive.current = true
+    growthEpochRef.current += 1
+    clearGrowthNotifications()
+    setGrowthSyncing(false)
+    try {
+      await coreWrites.current.runBulk(async () => {
+        const previousSettings = persistedSettingsRef.current
+        const previousLogs = persistedLogsRef.current
+        const previousFoods = persistedFoodsRef.current
         const previousGrowth = await enqueueGrowthOperation(() => loadGrowthSnapshot(growthSnapshotRef.current.companion.cycleId))
         if (hasPersistedCoreData() || hasPersistedGrowthData(previousGrowth)) downloadPersistedCoreBackup(previousGrowth)
         await replaceAllData(migratedSettings, migratedLogs, nextFoods)
@@ -380,22 +421,27 @@ export default function App() {
         setLogs(migratedLogs)
         setFoods(nextFoods)
         setGrowthSnapshot(importedGrowth)
+        growthNotificationBaselineReadyRef.current = true
         setGrowthError(undefined)
         setRecordSaveStates({})
         setFirstRunRoute('review')
-      } finally {
-        growthBulkMutationActive.current = false
-      }
-    })
-    void syncGrowth({ logs: migratedLogs, settings: migratedSettings, customFoodCount: nextFoods.length })
+      })
+    } finally {
+      growthBulkMutationActive.current = false
+    }
+    void syncGrowth({ logs: migratedLogs, settings: migratedSettings, customFoodCount: nextFoods.length }, 'import')
   }
   const clearData = async () => {
-    await coreWrites.current.runBulk(async () => {
-      growthBulkMutationActive.current = true
-      const previousSettings = persistedSettingsRef.current
-      const previousLogs = persistedLogsRef.current
-      const previousFoods = persistedFoodsRef.current
-      try {
+    if (growthBulkMutationActive.current || coreWrites.current.isBulkMutationActive) throw new Error('data replacement already in progress')
+    growthBulkMutationActive.current = true
+    growthEpochRef.current += 1
+    clearGrowthNotifications()
+    setGrowthSyncing(false)
+    try {
+      await coreWrites.current.runBulk(async () => {
+        const previousSettings = persistedSettingsRef.current
+        const previousLogs = persistedLogsRef.current
+        const previousFoods = persistedFoodsRef.current
         const previousGrowth = await enqueueGrowthOperation(() => loadGrowthSnapshot(growthSnapshotRef.current.companion.cycleId))
         if (hasPersistedCoreData() || hasPersistedGrowthData(previousGrowth)) downloadPersistedCoreBackup(previousGrowth)
         await clearAllData()
@@ -416,15 +462,16 @@ export default function App() {
         setLogs([])
         setFoods([])
         setGrowthSnapshot(emptyGrowth)
+        growthNotificationBaselineReadyRef.current = true
         setGrowthError(undefined)
         setRecordSaveStates({})
         // Long-term Planner data is deliberately preserved by this clear action.
         setFirstRunRoute('welcome')
         setTab('today')
-      } finally {
-        growthBulkMutationActive.current = false
-      }
-    })
+      })
+    } finally {
+      growthBulkMutationActive.current = false
+    }
   }
   const requirePlannerWritable = () => {
     if (plannerError) throw new Error('Planner data is unavailable; reload before writing')
@@ -536,11 +583,32 @@ export default function App() {
   }
   const selectAppTab = (nextTab: AppTab) => {
     setTab(nextTab)
-    if (nextTab === 'growth') void syncGrowth()
+    if (nextTab === 'growth') void syncGrowth(undefined, 'retry')
   }
   const retryGrowth = () => {
     setGrowthBoundaryKey((key) => key + 1)
-    void syncGrowth()
+    void syncGrowth(undefined, 'retry')
+  }
+  const openGrowthFromNotification = () => {
+    clearGrowthNotifications()
+    setPlannerPage(undefined)
+    setTab('growth')
+    void syncGrowth(undefined, 'retry')
+    const focusGrowthHeading = () => {
+      const heading = document.getElementById('growth-page-title')
+      if (!heading) return false
+      heading.scrollIntoView({ block: 'start', behavior: 'auto' })
+      heading.focus({ preventScroll: true })
+      return true
+    }
+    if (focusGrowthHeading()) return
+    const observer = new MutationObserver(() => {
+      if (!focusGrowthHeading()) return
+      observer.disconnect()
+      window.clearTimeout(timeout)
+    })
+    observer.observe(document.querySelector('.app-shell > main') ?? document.body, { childList: true, subtree: true })
+    const timeout = window.setTimeout(() => observer.disconnect(), 5_000)
   }
   const confirmGrowthImprint = async (affinity: GrowthAffinity) => {
     if (growthBulkMutationActive.current) return
@@ -612,7 +680,7 @@ export default function App() {
     />
   }
 
-  return <div className="app-shell">
+  return <div className={!plannerPage && tab === 'record' ? 'app-shell app-shell--record' : 'app-shell'}>
     {!online && <div className="offline-banner">目前離線 · 資料仍會儲存在此裝置</div>}
     {updateReady && <button className="update-banner" onClick={() => { setUpdateError(undefined); setUpdateSafetyOpen(true) }}>有新版本可用</button>}
     {integrityComparison?.status === 'match' && <div className="v6-integrity-banner match" role="status"><span>更新完成，歷史資料完整</span><button type="button" onClick={() => { clearIntegritySession(); setIntegrityComparison(undefined) }}>知道了</button></div>}
@@ -646,6 +714,12 @@ export default function App() {
       {!plannerPage && tab === 'trends' && <Suspense fallback={<div className="loading-inline">載入趨勢圖表…</div>}><TrendsPage logs={logs} settings={trendSettings} /></Suspense>}
       {!plannerPage && tab === 'settings' && <SettingsPage today={today} settings={settings} reportSettings={trendSettings} logs={logs} foods={foods} planner={planner} onboardingIncomplete={!settings.onboarded && firstRunState.shouldBypassLegacyOnboarding} plannerDataUnavailable={Boolean(plannerError)} aiConfigured={aiClient.configured} online={online} onEnableAI={enableAI} onWithdrawAI={withdrawAI} onOpenPlanner={() => { if (!plannerError) setPlannerPage(activePlan ? 'detail' : 'onboarding') }} onOpenPlanHistory={() => setPlannerPage('history')} onPlannerImport={importPlanner} onSettings={updateSettings} onImport={importData} onClear={clearData} onExportCore={exportCoreBackup} onSaveFood={addFood} onDeleteFood={removeFood} />}
     </main>
+    <GrowthNotification
+      notice={growthNotification}
+      onDismiss={dismissGrowthNotification}
+      onOpenGrowth={openGrowthFromNotification}
+      modalOpen={quickAddOpen || updateSafetyOpen}
+    />
     {!plannerPage && <BottomNavigation activeTab={tab} onSelectTab={selectAppTab} onQuickAdd={() => setQuickAddOpen(true)} />}
     {quickAddOpen && <QuickAddSheet onClose={() => setQuickAddOpen(false)} onStage={openRecordStage} onMeal={openMeal} />}
     {updateSafetyOpen && <UpdateSafetySheet summary={updateSummary} hasPlanner={hasPlannerData} busy={updateBusy} errorMessage={updateError} onExportCore={exportCoreBackup} onExportPlanner={exportPlannerBackup} onClose={() => { if (!updateBusy) setUpdateSafetyOpen(false) }} onConfirmUpdate={confirmUpdate} />}

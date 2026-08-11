@@ -1,8 +1,11 @@
 import { CircleHelp } from 'lucide-react'
+import { useLayoutEffect, useMemo, useReducer } from 'react'
 import { GrowthArtworkStack } from './GrowthArtworkStack'
+import type { GrowthArtworkMotion } from './growthArtworkMotion'
 import {
   GROWTH_NODE_DEFINITIONS,
   type GrowthArtworkLayer,
+  type GrowthMainForm,
   type GrowthCompanionView
 } from './types'
 
@@ -13,6 +16,89 @@ export interface CompanionJourneyProps {
 }
 
 const clamp = (value: number, minimum: number, maximum: number) => Math.min(maximum, Math.max(minimum, value))
+
+interface CompanionVisualSnapshot {
+  key: string
+  layers: readonly GrowthArtworkLayer[]
+  mainForm: GrowthMainForm
+}
+
+interface CompanionMotionState {
+  current: CompanionVisualSnapshot
+  previous?: CompanionVisualSnapshot
+  motion: GrowthArtworkMotion
+  motionEventId: string
+  revision: number
+  failedVisualKey?: string
+  xp: number
+}
+
+type CompanionMotionAction =
+  | { type: 'sync'; visual: CompanionVisualSnapshot; xp: number }
+  | { type: 'complete'; eventId: string; result?: 'completed' | 'failed' }
+
+const companionMotionReducer = (
+  state: CompanionMotionState,
+  action: CompanionMotionAction
+): CompanionMotionState => {
+  if (action.type === 'complete') {
+    if (action.eventId !== state.motionEventId) return state
+    if (action.result === 'failed') {
+      return {
+        ...state,
+        current: state.previous ?? state.current,
+        previous: undefined,
+        motion: 'idle',
+        failedVisualKey: state.current.key
+      }
+    }
+    return { ...state, previous: undefined, motion: 'idle', failedVisualKey: undefined }
+  }
+
+  if (action.visual.key === state.failedVisualKey && action.visual.key !== state.current.key) {
+    if (action.xp > state.xp && state.motion === 'idle') {
+      const revision = state.revision + 1
+      return {
+        ...state,
+        motion: 'xp_pulse',
+        motionEventId: `xp:${state.xp}->${action.xp}:${state.current.key}:r${revision}`,
+        revision,
+        xp: action.xp
+      }
+    }
+    return action.xp === state.xp ? state : { ...state, xp: action.xp }
+  }
+
+  if (action.visual.key !== state.current.key) {
+    const motion: GrowthArtworkMotion = state.current.mainForm === action.visual.mainForm
+      ? 'level_transition'
+      : 'form_metamorphosis'
+    const revision = state.revision + 1
+    return {
+      current: action.visual,
+      previous: state.current,
+      motion,
+      motionEventId: `${motion}:${state.current.key}->${action.visual.key}:r${revision}`,
+      revision,
+      failedVisualKey: undefined,
+      xp: action.xp
+    }
+  }
+
+  const clearedState = state.failedVisualKey ? { ...state, failedVisualKey: undefined } : state
+  if (action.xp > clearedState.xp && clearedState.motion === 'idle') {
+    const revision = state.revision + 1
+    return {
+      ...clearedState,
+      motion: 'xp_pulse',
+      motionEventId: `xp:${clearedState.xp}->${action.xp}:${clearedState.current.key}:r${revision}`,
+      revision,
+      xp: action.xp
+    }
+  }
+
+  return action.xp === clearedState.xp ? clearedState : { ...clearedState, xp: action.xp }
+}
 
 export function CompanionJourney({ companion, fallbackArtworkUrl, onOpenXpHistory }: CompanionJourneyProps) {
   const current = GROWTH_NODE_DEFINITIONS[companion.growthNode - 1]
@@ -33,6 +119,27 @@ export function CompanionJourney({ companion, fallbackArtworkUrl, onOpenXpHistor
         loading: 'eager'
       }]
   const artworkLabel = companion.artworkLabel?.trim() || `${companionName}目前型態：${current.name}`
+  const artworkSignature = artworkLayers
+    .map((layer) => `${layer.id}:${layer.slot}:${layer.url}`)
+    .join('|')
+  const visualSnapshot = useMemo<CompanionVisualSnapshot>(() => ({
+    key: `node-${current.node}:${artworkSignature}`,
+    layers: artworkLayers,
+    mainForm: current.mainForm
+  // artworkSignature captures the complete frozen layer snapshot.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [artworkSignature, current.mainForm, current.node])
+  const [motionState, dispatchMotion] = useReducer(companionMotionReducer, {
+    current: visualSnapshot,
+    motion: 'idle',
+    motionEventId: `idle:${visualSnapshot.key}`,
+    revision: 0,
+    xp: companion.xp
+  })
+
+  useLayoutEffect(() => {
+    dispatchMotion({ type: 'sync', visual: visualSnapshot, xp: companion.xp })
+  }, [companion.xp, visualSnapshot])
 
   return <section className="growth-companion standard-card" aria-labelledby="growth-companion-title">
     <header className="growth-companion__header">
@@ -54,7 +161,15 @@ export function CompanionJourney({ companion, fallbackArtworkUrl, onOpenXpHistor
         : <strong className="growth-companion__xp">{companion.xp.toLocaleString('zh-TW')} XP</strong>}
     </header>
 
-    <GrowthArtworkStack layers={artworkLayers} label={artworkLabel} className="growth-companion__artwork" />
+    <GrowthArtworkStack
+      layers={motionState.current.layers}
+      previousLayers={motionState.previous?.layers}
+      label={artworkLabel}
+      className="growth-companion__artwork"
+      motion={motionState.motion}
+      motionEventId={motionState.motionEventId}
+      onMotionComplete={(_motion, eventId, result) => dispatchMotion({ type: 'complete', eventId, result })}
+    />
 
     <div className="growth-companion__progress">
       <div><strong>第 {current.node}／12 階</strong><span>{progressText}</span></div>

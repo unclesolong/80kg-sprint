@@ -5,8 +5,12 @@ import type {
   GrowthHabitatView,
   GrowthImprintChoiceView,
   GrowthMissionStatus as GrowthMissionViewStatus,
-  GrowthMissionView
+  GrowthMissionView,
+  GrowthXpBreakdownView,
+  GrowthXpEntryView,
+  GrowthXpSummaryView
 } from '../components/growth'
+import { DAILY_MISSION_XP, WEEKLY_MISSION_XP } from '../growth/engine'
 import { selectCompanionProgress } from '../growth/progression'
 import type {
   AchievementGroup,
@@ -27,6 +31,7 @@ export interface GrowthSyncResult<TSnapshot> {
 export interface GrowthPageViewModel {
   companion: GrowthCompanionView
   missions: GrowthMissionView[]
+  xpBreakdown: GrowthXpBreakdownView
   imprintChoice?: GrowthImprintChoiceView
   achievements: GrowthAchievementView[]
   habitat: GrowthHabitatView
@@ -121,6 +126,75 @@ const progressLabelForMission = (mission: GrowthMission): string => {
   return `${mission.progress.toLocaleString('zh-TW')}／${targetForMission(mission).toLocaleString('zh-TW')}${unit}`
 }
 
+const emptyXpSummary = (): GrowthXpSummaryView => ({ count: 0, xp: 0 })
+
+/**
+ * Explains the currently displayed XP from persisted reward rows. The earned
+ * periodKey is the only date classification used here: creditedAt may be much
+ * later after an ordinary replay and is not treated as provenance.
+ */
+export const buildGrowthXpBreakdown = (
+  snapshot: GrowthSnapshot,
+  today: string
+): GrowthXpBreakdownView => {
+  const missionsById = new Map(snapshot.missions.map((mission) => [mission.id, mission]))
+  const daily = emptyXpSummary()
+  const weekly = emptyXpSummary()
+  const byCategory: GrowthXpBreakdownView['byCategory'] = {
+    awareness: emptyXpSummary(),
+    nourishment: emptyXpSummary(),
+    activity: emptyXpSummary(),
+    recovery: emptyXpSummary()
+  }
+  let attributedXp = 0
+  let todayPeriodXp = 0
+
+  const entries = snapshot.rewardLedger.map<GrowthXpEntryView>((reward) => {
+    const mission = missionsById.get(reward.taskId)
+    const cadenceSummary = reward.cadence === 'daily' ? daily : weekly
+    cadenceSummary.count += 1
+    cadenceSummary.xp += reward.xpDelta
+    byCategory[reward.category].count += 1
+    byCategory[reward.category].xp += reward.xpDelta
+    attributedXp += reward.xpDelta
+    if (reward.periodKey === today) todayPeriodXp += reward.xpDelta
+
+    return {
+      id: reward.id,
+      taskId: reward.taskId,
+      cadence: reward.cadence,
+      periodKey: reward.periodKey,
+      xp: reward.xpDelta,
+      category: reward.category,
+      affinityDelta: reward.affinityDelta,
+      creditedAt: reward.createdAt,
+      title: mission
+        ? missionCopy[mission.metric].title
+        : reward.cadence === 'daily' ? '每日培育任務' : '每週培育任務',
+      ...(mission ? { metric: mission.metric, missionStatus: mission.status } : {}),
+      attribution: mission ? 'mission' : 'orphan'
+    }
+  }).sort((left, right) =>
+    right.periodKey.localeCompare(left.periodKey) ||
+    right.creditedAt.localeCompare(left.creditedAt) ||
+    left.id.localeCompare(right.id))
+
+  const displayedXp = snapshot.companion.xp
+  const residualXp = displayedXp - attributedXp
+  const integrity = residualXp === 0 ? 'exact' : residualXp > 0 ? 'residual' : 'over_attributed'
+  return {
+    displayedXp,
+    attributedXp,
+    residualXp,
+    integrity,
+    daily,
+    weekly,
+    todayPeriodXp,
+    byCategory,
+    entries
+  }
+}
+
 /**
  * Chooses a bounded set of evidence-bearing dates to replay before today.
  * Today is always last so historical settlement can never become the visible
@@ -193,6 +267,7 @@ export const buildGrowthPageView = (
 ): GrowthPageViewModel => {
   const companionState = snapshot.companion
   const progress = selectCompanionProgress(companionState)
+  const rewardedTaskIds = new Set(snapshot.rewardLedger.map((entry) => entry.taskId))
   const unlockedById = new Map(snapshot.achievements.map((achievement) => [achievement.achievementId, achievement]))
   const equippedAssets = new Set(companionState.equippedAchievementAssetIds)
   const companion: GrowthCompanionView = {
@@ -218,8 +293,11 @@ export const buildGrowthPageView = (
       target: targetForMission(mission),
       progressLabel: progressLabelForMission(mission),
       status: viewStatusForMission(mission),
-      xpReward: 10
+      xpReward: mission.cadence === 'daily' ? DAILY_MISSION_XP : WEEKLY_MISSION_XP,
+      rewarded: rewardedTaskIds.has(mission.id)
     }))
+
+  const xpBreakdown = buildGrowthXpBreakdown(snapshot, today)
 
   const achievements = achievementOrder.map<GrowthAchievementView>((id) => {
     const unlock = unlockedById.get(id)
@@ -269,7 +347,7 @@ export const buildGrowthPageView = (
       }
     : undefined
 
-  return { companion, missions, ...(imprintChoice ? { imprintChoice } : {}), achievements, habitat }
+  return { companion, missions, xpBreakdown, ...(imprintChoice ? { imprintChoice } : {}), achievements, habitat }
 }
 
 /**

@@ -47,6 +47,11 @@ export function TodayGrowthMissions({ missions, onOpenMission }: TodayGrowthMiss
             const progressMaximum = Math.max(1, mission.target)
             const progressValue = Math.min(progressMaximum, Math.max(0, mission.progress))
             const progressLabel = mission.progressLabel ?? `${progressValue}／${progressMaximum}`
+            const rewardLabel = mission.rewarded
+              ? `已獲得 +${mission.xpReward} XP`
+              : mission.status === 'completed'
+                ? '本期獎勵已達上限'
+                : `完成可得 +${mission.xpReward} XP`
             return <li className={`growth-mission growth-mission--${mission.status}`} key={mission.id}>
               <div className="growth-mission__icon" aria-hidden="true"><Icon /></div>
               <div className="growth-mission__body">
@@ -54,7 +59,7 @@ export function TodayGrowthMissions({ missions, onOpenMission }: TodayGrowthMiss
                 {mission.description && <p>{mission.description}</p>}
                 <progress max={progressMaximum} value={progressValue} aria-label={`${mission.title}：${progressLabel}`}>{progressLabel}</progress>
                 <div className="growth-mission__meta">
-                  <span>{affinity.resourceName} · XP +{mission.xpReward}</span>
+                  <span>{affinity.resourceName} · {rewardLabel}</span>
                   <span><Clock3 aria-hidden="true" />{progressLabel}</span>
                 </div>
               </div>

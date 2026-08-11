@@ -114,7 +114,48 @@ export interface GrowthMissionView {
   progressLabel?: string
   status: GrowthMissionStatus
   xpReward: number
+  /** The reward ledger contains this mission's deterministic task id. */
+  rewarded: boolean
   actionLabel?: string
+}
+
+export type GrowthXpIntegrity = 'exact' | 'residual' | 'over_attributed'
+export type GrowthXpEntryAttribution = 'mission' | 'orphan'
+
+export interface GrowthXpSummaryView {
+  count: number
+  xp: number
+}
+
+export interface GrowthXpEntryView {
+  id: string
+  taskId: string
+  cadence: 'daily' | 'weekly'
+  /** The date or week-start date to which the task reward belongs. */
+  periodKey: string
+  xp: number
+  category: GrowthAffinity
+  affinityDelta: number
+  /** When the ledger row was created; this does not identify live/backfill/import provenance. */
+  creditedAt: string
+  title: string
+  metric?: string
+  missionStatus?: GrowthMissionStatus
+  attribution: GrowthXpEntryAttribution
+}
+
+export interface GrowthXpBreakdownView {
+  displayedXp: number
+  attributedXp: number
+  /** Signed difference: displayedXp - attributedXp. */
+  residualXp: number
+  integrity: GrowthXpIntegrity
+  daily: GrowthXpSummaryView
+  weekly: GrowthXpSummaryView
+  /** Rewards whose earned periodKey equals the requested date. */
+  todayPeriodXp: number
+  byCategory: Record<GrowthAffinity, GrowthXpSummaryView>
+  entries: GrowthXpEntryView[]
 }
 
 export interface GrowthAffinityRecommendation {

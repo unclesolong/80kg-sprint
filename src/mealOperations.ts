@@ -242,7 +242,7 @@ export const commonIngredients = (): CommonIngredient[] => {
     pick('breakfast', 'oil', 'egg-oil', 5),
     pick('breakfast', 'muffin', 'muffin', 1),
     pick('breakfast', 'orange', 'orange-juice', 250),
-    pick('breakfast', 'yogurt', 'fage', 250, '高蛋白優格／FAGE'),
+    pick('breakfast', 'yogurt', 'fage', 250, '高蛋白優格／乳品'),
     pick('lunch', 'chicken', 'chicken', 200),
     pick('lunch', 'other', 'other-meat', 150),
     pick('lunch', 'veg', 'vegetables', 300),

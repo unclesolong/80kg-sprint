@@ -8,6 +8,7 @@ export function PlanDashboardHero({ model, onOpenPlan }: {
   model: TodayDashboardModel
   onOpenPlan?: () => void
 }) {
+  const trackingOnly = model.targets.mode === 'tracking_only'
   const status = model.finalization.needsRefinalization
     ? { label: '資料已更新，需重新結算', className: 'needs-refinalization', Icon: RefreshCcw }
     : model.finalization.finalized
@@ -23,7 +24,7 @@ export function PlanDashboardHero({ model, onOpenPlan }: {
 
   return <header className={`v6-hero v6-plan-dashboard-hero plan-hero hero-card trend-${model.weight.trendStatus}`}>
     <div className="v6-hero__top plan-hero__top">
-      <div className="v6-hero__heading"><span>今日計畫</span><h1>{model.challenge.title}</h1></div>
+      <div className="v6-hero__heading"><span>{trackingOnly ? '今日追蹤' : '今日計畫'}</span><h1>{model.challenge.title}</h1></div>
       <div className="v6-hero__controls"><strong>第 {model.challenge.dayNumber}／{model.challenge.totalDays} 天</strong>{onOpenPlan && <button type="button" onClick={onOpenPlan}>查看計畫</button>}</div>
     </div>
     <div className="v6-hero__weight plan-hero__weight">
@@ -34,10 +35,10 @@ export function PlanDashboardHero({ model, onOpenPlan }: {
       <span>{model.weight.morningCount === 0 ? '先完成今天晨間紀錄' : trend3}</span>
       <span>{trend7}</span>
     </div>
-    <div className="v6-hero__progress plan-hero__progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={model.challenge.progressPercent} aria-label={`計畫日程進度 ${model.challenge.progressPercent}%`}><i style={{ width: `${model.challenge.progressPercent}%` }} /></div>
+    <div className="v6-hero__progress plan-hero__progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={model.challenge.progressPercent} aria-label={`${trackingOnly ? '追蹤' : '計畫'}日程進度 ${model.challenge.progressPercent}%`}><i style={{ width: `${model.challenge.progressPercent}%` }} /></div>
     <div className="v6-hero__meta plan-hero__meta">
       {model.challenge.targetWeightKg != null && <span><Target aria-hidden="true" />目標 {weight(model.challenge.targetWeightKg)} kg</span>}
-      <span><CalendarRange aria-hidden="true" />預計至 {compactDate(model.challenge.endDate)}</span>
+      <span><CalendarRange aria-hidden="true" />{trackingOnly ? '檢視至' : '預計至'} {compactDate(model.challenge.endDate)}</span>
     </div>
   </header>
 }

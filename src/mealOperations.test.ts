@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { mealTotals } from './calculations'
-import { defaultFoodTemplates, emptyLog, emptyMealDetails, migrateLog } from './defaults'
+import { emptyLog, emptyMealDetails, legacyPersonalFoodTemplates, migrateLog } from './defaults'
 import { createFoodTemplateChange } from './foodTemplates'
 import {
   addFoodTemplate, addMealLine, addMealLines, commitDraftEntries, commitDraftEntriesWithMetadata, commonIngredients, copyDayIntoDetails, copyMealIntoDetails, findFoodTemplate, ingredientMealLine,
@@ -14,7 +14,7 @@ describe('飲食紀錄核心操作', () => {
   it('空白日期的四個餐次都能新增食物', () => {
     for (const meal of ['breakfast', 'lunch', 'dinner', 'evening'] as const) {
       const next = addMealLine(emptyMealDetails(), meal, ingredientMealLine(chicken(), 100))
-      expect(next[meal].some((line) => line.amount === 100 && line.label.includes('雞胸'))).toBe(true)
+      expect(next[meal].some((line) => line.amount === 100 && line.label.includes('雞肉'))).toBe(true)
     }
   })
 
@@ -49,14 +49,14 @@ describe('飲食紀錄核心操作', () => {
   })
 
   it('快捷模板可選擇與預設不同的餐次', () => {
-    const template = defaultFoodTemplates().find((item) => item.id === 'chicken_rice')!
+    const template = legacyPersonalFoodTemplates().find((item) => item.id === 'chicken_rice')!
     const result = addFoodTemplate(emptyMealDetails(), template, 'dinner')
     expect(result.details.dinner.some((line) => line.templateId === template.id)).toBe(true)
     expect(result.details.lunch.some((line) => line.templateId === template.id)).toBe(false)
   })
 
   it('快捷模板不會讓 totals 與 mealDetails 不一致', () => {
-    const template = defaultFoodTemplates().find((item) => item.id === 'fage_250')!
+    const template = legacyPersonalFoodTemplates().find((item) => item.id === 'fage_250')!
     const existing = addMealLine(emptyMealDetails(), 'breakfast', ingredientMealLine(chicken(), 100))
     const log = { ...emptyLog('2026-08-01'), ...nutritionPatch(existing), mealDetails: existing }
     const change = createFoodTemplateChange(log, template, '2026-08-01T12:00:00.000Z', 'breakfast')
@@ -79,14 +79,14 @@ describe('飲食紀錄核心操作', () => {
   })
 
   it('完整套餐重複加入時可以被偵測', () => {
-    const template = defaultFoodTemplates()[0]
+    const template = legacyPersonalFoodTemplates()[0]
     const first = addFoodTemplate(emptyMealDetails(), template, 'breakfast')
     expect(findFoodTemplate(first.details, 'breakfast', template.id)?.label).toBe(template.name)
   })
 
   it('復原新增後所有營養數字恢復', () => {
     const base = addMealLine(emptyMealDetails(), 'lunch', ingredientMealLine(chicken(), 200))
-    const template = defaultFoodTemplates()[1]
+    const template = legacyPersonalFoodTemplates()[1]
     const added = addFoodTemplate(base, template, 'evening')
     const removed = removeMealLine(added.details, 'evening', added.key)
     expect(mealTotals(removed.details)).toEqual(mealTotals(base))
@@ -95,7 +95,7 @@ describe('飲食紀錄核心操作', () => {
 
   it('內建完整餐點與常用食材使用一致的營養估算', () => {
     const catalog = commonIngredients()
-    const template = (id: string) => defaultFoodTemplates().find((item) => item.id === id)!
+    const template = (id: string) => legacyPersonalFoodTemplates().find((item) => item.id === id)!
     const estimate = (items: Array<[string, number]>) => {
       let details = emptyMealDetails()
       for (const [id, amount] of items) details = addMealLine(details, 'lunch', ingredientMealLine(catalog.find((item) => item.id === id)!, amount))

@@ -14,6 +14,8 @@ const addIssue = (issues: string[], condition: boolean, code: string) => {
   if (!condition) issues.push(code)
 }
 
+const sameEnergyPlan = (left: PlanAIOutput['energyPlan'], right: PlanGenerateRequest['localRecommendation']['energyPlan']) => left.restingEnergyKcal === right.restingEnergyKcal && left.activeEnergyKcal === right.activeEnergyKcal && left.estimatedTdeeKcal === right.estimatedTdeeKcal && left.source === right.source && left.confidence === right.confidence && left.sampleCount === right.sampleCount
+
 const roundTo50 = (value: number) => Math.round(value / 50) * 50
 const roundTo5 = (value: number) => Math.round(value / 5) * 5
 
@@ -121,6 +123,10 @@ export const validatePlanRequestSafety = (request: PlanGenerateRequest): string[
   if (request.safety.kidneyDisease) issues.push('kidney_risk_requires_professional_review')
   if (!request.safety.bounds) return [...issues, 'safety_bounds_missing']
 
+  const energy = request.localRecommendation.energyPlan
+  if (Math.abs(energy.restingEnergyKcal + energy.activeEnergyKcal - energy.estimatedTdeeKcal) > 100) issues.push('local_energy_total_inconsistent')
+  if (request.localRecommendation.selectedTargets.calorieTargetKcal >= energy.estimatedTdeeKcal) issues.push('local_intake_not_below_tdee')
+
   const minimumCalories = minimumSelfServeCalories(request.profile)
   issues.push(...validateAbsoluteBounds(request.safety.bounds, minimumCalories))
 
@@ -160,6 +166,7 @@ export const validatePlanAIOutputSafety = (
     request.safety.bounds,
     request.profile.currentWeightKg,
   )
+  if (!sameEnergyPlan(output.energyPlan, request.localRecommendation.energyPlan)) issues.push('energy_plan_provenance_mismatch')
   issues.push(...validateInitialActivityIncrease(output.selectedTargets, request.profile))
   if (output.selectedTargets.calorieTargetKcal < minimumSelfServeCalories(request.profile)) {
     issues.push('calorie_target_below_self_serve_minimum')

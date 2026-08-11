@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appendPlanVersion, emptyPlannerSnapshot, selectPlanVersionByEffectiveDate, selectPlanVersionForDate } from './planSelectors'
+import { appendPlanVersion, emptyPlannerSnapshot, selectDailyPlanTargetRows, selectPlanVersionByEffectiveDate, selectPlanVersionForDate } from './planSelectors'
 import type { PlanVersion } from './types'
 
 const version = (id: string, effectiveFrom: string, calorieTargetKcal: number): PlanVersion => ({
@@ -48,5 +48,11 @@ describe('plan version selectors', () => {
     const existing = version('v2', '2026-08-08', 1_900)
     expect(selectPlanVersionByEffectiveDate([existing], 'plan-1', '2026-08-08')).toBe(existing)
     expect(selectPlanVersionByEffectiveDate([existing], 'plan-1', '2026-08-15')).toBeUndefined()
+  })
+
+  it('將新版計畫轉成攝取、活動、靜止與 TDEE 四列表格', () => {
+    const current = { ...version('v3', '2026-08-10', 1_800), energyPlan: { restingEnergyKcal: 1_750, activeEnergyKcal: 450, estimatedTdeeKcal: 2_200, source: 'wearable_logs' as const, confidence: 'high' as const, sampleCount: 14 } }
+    expect(selectDailyPlanTargetRows(current).map((row) => [row.key, row.valueKcal])).toEqual([['intake', 1_800], ['active', 450], ['resting', 1_750], ['tdee', 2_200]])
+    expect(selectDailyPlanTargetRows(version('legacy', '2026-08-01', 2_000))).toHaveLength(1)
   })
 })

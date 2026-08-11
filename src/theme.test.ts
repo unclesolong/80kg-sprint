@@ -47,7 +47,10 @@ describe('theme utility', () => {
       ['#765000', '#f1eee6'],
       ['#a52b34', '#f6eaeb'],
       ['#d594f5', '#121714'],
-      ['#75328f', '#ffffff']
+      ['#75328f', '#ffffff'],
+      ['#f5f7f5', '#102018'],
+      ['#a2aca5', '#102018'],
+      ['#c1c8c3', '#102018']
     ] as const
 
     for (const [foreground, background] of pairs) {

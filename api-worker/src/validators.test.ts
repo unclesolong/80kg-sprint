@@ -59,6 +59,13 @@ describe('privacy-minimizing request validators', () => {
     expect(validateWeeklyReviewRequest(weeklyRequest).ok).toBe(true)
   })
 
+  it('requires a strict local energy analysis in plan requests', () => {
+    const request = structuredClone(planRequest) as unknown as { localRecommendation: Record<string, unknown> }
+    delete request.localRecommendation.energyPlan
+    expect(validatePlanGenerateRequest(request).ok).toBe(false)
+    expect(validatePlanGenerateRequest({ ...planRequest, localRecommendation: { ...planRequest.localRecommendation, energyPlan: { ...planRequest.localRecommendation.energyPlan, rawDeviceRows: [] } } }).ok).toBe(false)
+  })
+
   it('rejects unexpected PII/raw note keys', () => {
     expect(validatePlanGenerateRequest({ ...planRequest, email: 'person@example.test' }).ok).toBe(false)
     expect(validateWeeklyReviewRequest({ ...weeklyRequest, rawNotes: ['private'] }).ok).toBe(false)

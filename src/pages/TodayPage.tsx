@@ -54,11 +54,18 @@ export function TodayPage({ today, log, logs, settings, plan, planVersion, lates
   const details = ensureMealDetails(log)
   const activity = activityTotals(log)
   const completion = dailyCompletion(log, targetSettings)
+  const trackingOnly = dashboard.targets.mode === 'tracking_only'
+  const completionItems = trackingOnly
+    ? completion.items.map((item) => item.key === 'protein'
+      ? { ...item, complete: log.proteinG != null }
+      : item.key === 'water' ? { ...item, complete: log.waterMl != null } : item)
+    : completion.items
+  const completionCount = completionItems.filter((item) => item.complete).length
   const advice = buildAdvice(log, allLogs, targetSettings)
   const deficit = finalizedDeficit(log)
   const cumulative = finalizedCumulativeDeficit(allLogs, targetSettings)
-  const homeTemplateIds = ['fixed_breakfast', 'fage_250', 'chicken_rice', 'chicken_pasta', 'ramen_chicken', 'soy_chia']
-  const templates = homeTemplateIds.flatMap((id) => (settings.foodTemplates ?? []).find((template) => template.id === id) ?? [])
+  const templates = (settings.foodTemplates ?? []).filter((template) => template.quick).slice(0, 6)
+  const estimatedTotalEnergy = activity.effectiveActiveKcal == null || log.restingKcal == null ? undefined : activity.effectiveActiveKcal + log.restingKcal
 
   const addWater = (amount: number) => {
     const previousWater = log.waterMl
@@ -89,16 +96,18 @@ export function TodayPage({ today, log, logs, settings, plan, planVersion, lates
 
     <section className="quick-sprint v6-quick-add flat-section"><div className="flat-heading"><h2>快速加入</h2><span>白天隨吃隨記</span></div><div className="quick-water"><button type="button" onClick={() => addWater(250)}><Droplets size={18} />＋250 ml</button><button type="button" onClick={() => addWater(500)}><Droplets size={18} />＋500 ml</button></div><div className="food-shortcuts" aria-label="食物快捷模板">{templates.map((template) => <button type="button" key={template.id} onClick={() => onOpenFoodTemplate(template)}><strong>{template.name}</strong><small>約 {Math.round(template.kcal)} kcal · P {Math.round(template.proteinG)}g</small></button>)}</div></section>
 
-    <details className="more-data v6-more-data standard-card"><summary><span>更多資料</span><strong>{log.dayFinalized ? `達成率 ${achievementRate(log, targetSettings)}%` : `完成 ${completion.completed}／${completion.total}`}</strong></summary><div className="more-data-body">
+    <details className="more-data v6-more-data standard-card"><summary><span>更多資料</span><strong>{log.dayFinalized ? trackingOnly ? '今日已結算' : `達成率 ${achievementRate(log, targetSettings)}%` : `完成 ${completionCount}／${completionItems.length}`}</strong></summary><div className="more-data-body">
       {!log.dayFinalized && <p className="not-finalized-note">尚未完成晚間結算，不顯示最終赤字。</p>}
-      {log.dayFinalized && <div className="final-energy-grid"><article><span>今日消耗</span><strong>{rounded((log.restingKcal ?? 0) + (activity.effectiveActiveKcal ?? 0))}</strong><small>kcal</small></article><article><span>今日赤字</span><strong>{rounded(deficit)}</strong><small>kcal</small></article><article><span>期間累積</span><strong>{rounded(cumulative)}</strong><small>kcal</small></article></div>}
-      <div className="more-metrics"><div><Utensils /><span>蛋白質</span><strong>{log.proteinG == null ? '—' : `${log.proteinG.toFixed(1)} g`}</strong></div><div><Droplets /><span>白開水</span><strong>{rounded(log.waterMl)} ml</strong></div><div><Moon /><span>前一晚睡眠</span><strong>{log.sleepHours == null ? '—' : `${log.sleepHours.toFixed(1)} 小時`}</strong></div><div><Footprints /><span>步數</span><strong>{rounded(log.steps)}</strong></div><div><span className="status-dot" /> <span>排便</span><strong>{log.bowelMovement === 'yes' ? '有' : log.bowelMovement === 'none' ? '沒有' : '未記錄'}</strong></div><div><span className="status-dot" /><span>下肢／足底狀態</span><strong>{log.lowerLegTightness ?? '—'}／5</strong></div></div>
+      {log.dayFinalized && (estimatedTotalEnergy == null || deficit == null
+        ? <p className="not-finalized-note">活動或能量資料未填完整，因此不顯示消耗與赤字估算。</p>
+        : <div className="final-energy-grid"><article><span>今日消耗</span><strong>{rounded(estimatedTotalEnergy)}</strong><small>kcal</small></article><article><span>今日赤字</span><strong>{rounded(deficit)}</strong><small>kcal</small></article><article><span>期間累積</span><strong>{rounded(cumulative)}</strong><small>kcal</small></article></div>)}
+      <div className="more-metrics"><div><Utensils /><span>蛋白質</span><strong>{log.proteinG == null ? '—' : `${log.proteinG.toFixed(1)} g`}</strong></div><div><Droplets /><span>白開水</span><strong>{rounded(log.waterMl)} ml</strong></div><div><Moon /><span>前一晚睡眠</span><strong>{log.sleepHours == null ? '—' : `${log.sleepHours.toFixed(1)} 小時`}</strong></div><div><Footprints /><span>步數</span><strong>{rounded(log.steps)}</strong></div><div><span className="status-dot" /> <span>排便</span><strong>{log.bowelMovement === 'yes' ? '有' : log.bowelMovement === 'none' ? '沒有' : '未記錄'}</strong></div><div><span className="status-dot" /><span>活動相關不適</span><strong>{log.lowerLegTightness == null ? '未記錄' : `${log.lowerLegTightness}／5`}</strong></div></div>
       <div className="nutrient-coverage-grid">{nutrientRows.map((row) => <div key={row.label}><span>{row.label}</span><strong>{row.value}</strong><small>{row.note}</small></div>)}</div>
-      <div className="completion-list">{completion.items.map((item) => <span className={item.complete ? 'done' : ''} key={item.key}><i />{item.label}</span>)}</div>
+      <div className="completion-list">{completionItems.map((item) => <span className={item.complete ? 'done' : ''} key={item.key}><i />{item.label}</span>)}</div>
       <div className="advice-list secondary-advice">{advice.slice(0, 2).map((item, index) => <article className={`advice ${item.level}`} key={`${item.text}-${index}`}><i /><p>{item.text}</p></article>)}</div>
     </div></details>
 
-    {!plan && !plannerError && <button type="button" className="planner-entry-card health-card" onClick={onOpenPlanner}><span>新增功能</span><strong>建立長期減脂計畫</strong><small>以既有設定與最近晨重預填；確認前不會寫入新資料庫。</small><ChevronRight /></button>}
+    {!plan && !plannerError && <button type="button" className="planner-entry-card health-card" onClick={onOpenPlanner}><span>新增功能</span><strong>建立長期減脂計畫</strong><small>最近晨重可協助預填；其餘問卷由你確認，送出前不會建立計畫。</small><ChevronRight /></button>}
     {planVersion && <PlanInsights version={planVersion} latestReview={latestWeeklyReview} onOpenWeeklyReview={onOpenWeeklyReview} />}
 
     {waterToast && <div className="undo-toast" role="status"><span>已加入 {waterToast.amount} ml 白開水</span><button type="button" onClick={() => { onQuickAdd({ waterMl: waterToast.previous }); setWaterToast(undefined) }}>復原</button></div>}

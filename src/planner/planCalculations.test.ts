@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { DailyLog } from '../types'
-import { calculateSafetyBounds, createLocalPlanDraft, deriveTdeeEstimate, dinnerMainBudget, minimumSelfServeCalories, validateGoalDate } from './planCalculations'
+import { calculateSafetyBounds, createLocalPlanDraft, deriveDailyEnergyPlan, deriveTdeeEstimate, dinnerMainBudget, hasValidWearableEnergyInput, minimumSelfServeCalories, validateGoalDate } from './planCalculations'
 import type { UserProfile } from './types'
 
 const plannerProfile = (patch: Partial<UserProfile> = {}): UserProfile => ({
@@ -21,13 +21,28 @@ describe('planner calculations', () => {
     expect(estimate).toMatchObject({ value: 2200, confidence: 'medium', source: 'wearable_logs', sampleCount: 7 })
   })
 
+  it('separates resting, active and total energy for the daily target table', () => {
+    const energy = deriveDailyEnergyPlan(plannerProfile(), Array.from({ length: 14 }, (_, index) => wearableLog(index + 1, 1_750, 450)))
+    expect(energy).toEqual({ restingEnergyKcal: 1_750, activeEnergyKcal: 450, estimatedTdeeKcal: 2_200, confidence: 'high', source: 'wearable_logs', sampleCount: 14 })
+  })
+
   it('uses profile wearable averages before Mifflin', () => {
-    const estimate = deriveTdeeEstimate(plannerProfile({ averageRestingEnergyKcal: 1750, averageActiveEnergyKcal: 450 }), [])
+    const estimate = deriveTdeeEstimate(plannerProfile({ averageRestingEnergyKcal: 1750, averageActiveEnergyKcal: 450, wearableObservationDays: 14 }), [])
     expect(estimate).toMatchObject({ value: 2200, confidence: 'medium', source: 'profile_wearable_average' })
   })
 
+  it('accepts either an empty wearable estimate or one complete bounded observation set', () => {
+    expect(hasValidWearableEnergyInput(plannerProfile({ averageRestingEnergyKcal: undefined, averageActiveEnergyKcal: undefined, wearableObservationDays: undefined }))).toBe(true)
+    expect(hasValidWearableEnergyInput(plannerProfile({ averageRestingEnergyKcal: 1750, averageActiveEnergyKcal: 450, wearableObservationDays: 14 }))).toBe(true)
+    expect(hasValidWearableEnergyInput(plannerProfile({ averageRestingEnergyKcal: 1750, averageActiveEnergyKcal: undefined, wearableObservationDays: 14 }))).toBe(false)
+    expect(hasValidWearableEnergyInput(plannerProfile({ averageRestingEnergyKcal: 499, averageActiveEnergyKcal: 450, wearableObservationDays: 14 }))).toBe(false)
+    expect(hasValidWearableEnergyInput(plannerProfile({ averageRestingEnergyKcal: 1750, averageActiveEnergyKcal: 3001, wearableObservationDays: 14 }))).toBe(false)
+    expect(hasValidWearableEnergyInput(plannerProfile({ averageRestingEnergyKcal: 1750, averageActiveEnergyKcal: 450, wearableObservationDays: 0 }))).toBe(false)
+    expect(hasValidWearableEnergyInput(plannerProfile({ averageRestingEnergyKcal: 1750, averageActiveEnergyKcal: 450, wearableObservationDays: 1.5 }))).toBe(false)
+  })
+
   it('falls back to a low-confidence Mifflin estimate', () => {
-    const estimate = deriveTdeeEstimate(plannerProfile({ wearable: 'none' }), [])
+    const estimate = deriveTdeeEstimate(plannerProfile({ wearable: 'none', averageRestingEnergyKcal: 1750, averageActiveEnergyKcal: 450, wearableObservationDays: 14 }), [])
     expect(estimate.confidence).toBe('low')
     expect(estimate.source).toBe('mifflin')
     expect(estimate.value).toBeGreaterThan(minimumSelfServeCalories(plannerProfile()))

@@ -39,6 +39,14 @@ const version: PlanVersion = {
   calorieTargetKcal: 1_700,
   calorieRangeMinKcal: 1_650,
   calorieRangeMaxKcal: 1_750,
+  energyPlan: {
+    restingEnergyKcal: 1_800,
+    activeEnergyKcal: 550,
+    estimatedTdeeKcal: 2_350,
+    source: 'wearable_logs',
+    confidence: 'medium',
+    sampleCount: 10
+  },
   proteinMinG: 130,
   proteinMaxG: 155,
   waterTargetMl: 2_500,
@@ -211,7 +219,7 @@ describe('today dashboard model', () => {
     const missingFood = completeLog('2026-08-08', { intakeKcal: undefined, proteinG: undefined, waterMl: 0 })
     expect(build(missingFood).primaryAction).toMatchObject({ title: '更新今天已吃的食物', stage: 'food' })
     const pain = completeLog('2026-08-08', { intakeKcal: undefined, lowerLegTightness: 3 })
-    expect(build(pain).primaryAction).toMatchObject({ title: '今天是恢復日，不補跑', stage: 'morning', tone: 'warn' })
+    expect(build(pain).primaryAction).toMatchObject({ title: '今天優先恢復', stage: 'morning', tone: 'warn' })
   })
 
   it('uses the explicit refinalization action after data changes', () => {

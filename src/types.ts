@@ -1,7 +1,10 @@
+import type { GrowthSnapshot } from './growth/types'
+
 export type WeightCondition = 'morning_fasted' | 'other'
 export type BowelMovement = 'unrecorded' | 'none' | 'yes'
 export type SaltLevel = 'normal' | 'high'
 export type ThemeMode = 'dark' | 'light'
+export type GuidanceMode = 'tracking_only' | 'legacy_targets' | 'planner'
 export type WorkoutType = 'walk' | 'slow_jog' | 'run' | 'strength' | 'cycling' | 'other'
 export type WorkoutSource = 'apple_watch' | 'manual'
 export type WorkoutActivityKcalMode = 'included_in_daily_total' | 'add_to_daily_total'
@@ -76,7 +79,7 @@ export interface DailyLog {
   weightKg?: number
   weightCondition?: WeightCondition
   waistCm?: number
-  /** The latest Apple Watch or manually copied daily activity snapshot. */
+  /** The latest wearable-device or manually entered daily activity snapshot. */
   activeKcal?: number
   activityUpdatedAt?: string
   foodUpdatedAt?: string
@@ -146,6 +149,12 @@ export interface ChallengeSettings {
   exerciseMinutesMinimum: number
   exerciseMinutesMaximum: number
   foodTemplates?: FoodTemplate[]
+  /**
+   * Optional for backwards-compatible v1 backups. Missing values are resolved
+   * by migrateSettings: completed legacy setups keep their historical targets,
+   * while a fresh setup starts in tracking-only mode until a plan is confirmed.
+   */
+  guidanceMode?: GuidanceMode
   theme: ThemeMode
   onboarded: boolean
 }
@@ -183,4 +192,5 @@ export interface BackupPayload {
   settings: ChallengeSettings
   logs: DailyLog[]
   foods: CustomFood[]
+  growth?: GrowthSnapshot
 }

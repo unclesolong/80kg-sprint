@@ -1,7 +1,24 @@
 import { mealTotals } from './calculations'
 import type { ChallengeSettings, DailyLog, FoodTemplate, MealDetails } from './types'
 
-export const defaultFoodTemplates = (): FoodTemplate[] => [
+const localDateKey = (date: Date): string =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+
+const freshTrackingDates = (): { startDate: string; finalWeighInDate: string } => {
+  const start = new Date()
+  const review = new Date(start)
+  review.setDate(review.getDate() + 30)
+  return { startDate: localDateKey(start), finalWeighInDate: localDateKey(review) }
+}
+
+const initialTrackingDates = freshTrackingDates()
+
+/**
+ * Historical presets from the original single-user build. They are kept only
+ * so existing data and compatibility tests can still be interpreted; fresh
+ * accounts must never receive them automatically.
+ */
+export const legacyPersonalFoodTemplates = (): FoodTemplate[] => [
   { id: 'fixed_breakfast', name: '固定早餐', description: '荷包蛋2顆、油5g、英式瑪芬、柳橙汁250ml、FAGE 250g、黑咖啡', meal: 'breakfast', quick: true, kcal: 660, proteinG: 44, carbsG: 63, fatG: 20, fiberG: 2, sodiumMg: 480 },
   { id: 'fage_250', name: 'FAGE 250g', description: 'FAGE Total 0.2% 250g；請依實際包裝修正', meal: 'evening', quick: true, kcal: 183, proteinG: 25, carbsG: 10, fatG: 1, fiberG: 0, sodiumMg: 100 },
   { id: 'chicken_200', name: '雞胸肉200g', description: '雞胸肉生重200g', meal: 'lunch', kcal: 240, proteinG: 45, carbsG: 0, fatG: 5, fiberG: 0, sodiumMg: 90 },
@@ -11,27 +28,30 @@ export const defaultFoodTemplates = (): FoodTemplate[] => [
   { id: 'ramen_chicken', name: '泡麵雞胸版', description: '泡麵、雞胸肉與蔬菜；詳細比例請在進階營養的泡麵模板調整', meal: 'dinner', quick: true, kcal: 650, proteinG: 50, carbsG: 58, fatG: 20, fiberG: 7, sodiumMg: 1300 }
 ]
 
+/** Fresh accounts start with an empty, user-owned template collection. */
+export const defaultFoodTemplates = (): FoodTemplate[] => []
+
 export const defaultSettings: ChallengeSettings = {
-  startDate: '2026-08-01',
-  finalWeighInDate: '2026-08-08',
-  baselineWeightKg: 81.1,
-  targetWeightKg: 80,
-  heightCm: 180,
-  activeKcalTarget: 660,
-  activeKcalMinimum: 600,
-  activeKcalMaximum: 700,
-  intakeKcalMinimum: 1700,
-  intakeKcalMaximum: 1850,
-  proteinMinimumG: 130,
-  proteinMaximumG: 150,
-  waterMinimumMl: 2500,
-  waterMaximumMl: 2800,
-  sleepMinimumHours: 7,
-  stepsMinimum: 8000,
-  stepsMaximum: 10000,
-  exerciseMinutesMinimum: 40,
-  exerciseMinutesMaximum: 50,
-  foodTemplates: defaultFoodTemplates(),
+  ...initialTrackingDates,
+  baselineWeightKg: 0,
+  targetWeightKg: 0,
+  heightCm: 0,
+  activeKcalTarget: 0,
+  activeKcalMinimum: 0,
+  activeKcalMaximum: 0,
+  intakeKcalMinimum: 0,
+  intakeKcalMaximum: 0,
+  proteinMinimumG: 0,
+  proteinMaximumG: 0,
+  waterMinimumMl: 0,
+  waterMaximumMl: 0,
+  sleepMinimumHours: 0,
+  stepsMinimum: 0,
+  stepsMaximum: 0,
+  exerciseMinutesMinimum: 0,
+  exerciseMinutesMaximum: 0,
+  foodTemplates: [],
+  guidanceMode: 'tracking_only',
   theme: 'dark',
   onboarded: false
 }
@@ -45,7 +65,7 @@ export const defaultMealDetails = (): MealDetails => ({
     { key: 'yogurt', label: '高蛋白優格', amount: 250, unit: 'g', kcalPerUnit: 0.73, proteinPerUnit: 0.1, carbsPerUnit: 0.04, fatPerUnit: 0.002, sodiumPerUnit: 0.4 }
   ],
   lunch: [
-    { key: 'chicken', label: '雞胸肉（生重）', amount: 0, unit: 'g', kcalPerUnit: 1.2, proteinPerUnit: 0.225, fatPerUnit: 0.026, sodiumPerUnit: 0.45 },
+    { key: 'chicken', label: '雞肉（生重，依部位修正）', amount: 0, unit: 'g', kcalPerUnit: 1.2, proteinPerUnit: 0.225, fatPerUnit: 0.026, sodiumPerUnit: 0.45 },
     { key: 'other', label: '其他肉／魚', amount: 0, unit: 'g', kcalPerUnit: 1.5, proteinPerUnit: 0.2 },
     { key: 'veg', label: '蔬菜', amount: 0, unit: 'g', kcalPerUnit: 0.35, proteinPerUnit: 0.02, carbsPerUnit: 0.07, fatPerUnit: 0.002, fiberPerUnit: 0.025, sodiumPerUnit: 0.3 },
     { key: 'rice', label: '熟白飯', amount: 0, unit: 'g', kcalPerUnit: 1.3, proteinPerUnit: 0.027, carbsPerUnit: 0.282, fatPerUnit: 0.003, fiberPerUnit: 0.004 },
@@ -106,7 +126,17 @@ export const emptyLog = (date: string): DailyLog => {
 export const migrateSettings = (settings?: Partial<ChallengeSettings>): ChallengeSettings => ({
   ...defaultSettings,
   ...settings,
-  foodTemplates: (settings?.foodTemplates?.length ? settings.foodTemplates : defaultFoodTemplates()).map((template) => ({ ...template }))
+  // Completed installations from the original build could rely on implicit
+  // presets and therefore have no stored foodTemplates field. Restore those
+  // presets only for that legacy shape. A fresh account and an explicit []
+  // both stay empty so another person's foods are never injected.
+  foodTemplates: (settings?.foodTemplates
+    ?? (settings?.onboarded ? legacyPersonalFoodTemplates() : defaultFoodTemplates()))
+    .map((template) => ({ ...template })),
+  // Completed installations created before guidanceMode keep their historical
+  // settings. Fresh/incomplete installations remain pure trackers until a plan
+  // is explicitly confirmed.
+  guidanceMode: settings?.guidanceMode ?? (settings?.onboarded ? 'legacy_targets' : 'tracking_only')
 })
 
 const migratedMealDetails = (log: DailyLog): MealDetails => {

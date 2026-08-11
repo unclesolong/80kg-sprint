@@ -30,27 +30,27 @@ describe('RecoveryGate', () => {
       onCreateNew: vi.fn()
     }))
     expect(html).toContain('發現這台裝置可能曾有紀錄')
-    expect(html).toContain('DailyLog')
+    expect(html).toContain('每日紀錄')
     expect(html).toContain('4 筆')
-    expect(html).toContain('MealLine')
+    expect(html).toContain('餐點項目')
     expect(html).toContain('9 項')
-    expect(html).toContain('Planner 全部紀錄')
+    expect(html).toContain('長期計畫相關資料')
     expect(html).toContain('繼續使用既有紀錄')
-    expect(html).toContain('匯入 JSON 備份')
+    expect(html).toContain('匯入追蹤與培育備份')
     expect(html).toContain('type="file"')
     expect(html).toContain('accept=".json,application/json"')
     expect(html).toContain('建立全新設定')
     expect(html).not.toContain('確認建立全新設定')
   })
 
-  it('warns instead of claiming emptiness when Planner data could not load', () => {
+  it('warns instead of claiming emptiness when long-term plan data could not load', () => {
     const html = renderToStaticMarkup(createElement(RecoveryGate, {
       state: { ...state, hasPlannerData: false, plannerDataUnavailable: true, counts: { ...state.counts, plannerPlans: 0, plannerRecords: 0 } },
       onContinueExisting: vi.fn(),
       onImportBackup: vi.fn(),
       onCreateNew: vi.fn()
     }))
-    expect(html).toContain('Planner 資料暫時無法確認')
+    expect(html).toContain('長期計畫資料暫時無法確認')
     expect(html).toContain('系統不會把此裝置當成全新裝置')
   })
 

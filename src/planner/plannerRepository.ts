@@ -22,6 +22,7 @@ export const buildInitialPlanBundle = (profile: UserProfile, decision: SafetyDec
     calorieTargetKcal: draft.calorieTargetKcal,
     calorieRangeMinKcal: decision.bounds.dailyCalories.min,
     calorieRangeMaxKcal: decision.bounds.dailyCalories.max,
+    energyPlan: { ...draft.energyPlan },
     proteinMinG: draft.proteinMinG,
     proteinMaxG: draft.proteinMaxG,
     waterTargetMl: draft.waterTargetMl,

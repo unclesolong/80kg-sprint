@@ -125,7 +125,7 @@ export function FoodAIFlow({ online, aiEnabled, metadata, onEnableAI, onAIRun, o
 
   return <section className="food-ai-flow" aria-labelledby="food-ai-title">
     <div className="food-ai-intro"><Bot aria-hidden="true" /><div><h3 id="food-ai-title">用一句話拆解餐點</h3><p>AI 只解析語意；熱量與營養一定來自你確認的資料來源。</p></div></div>
-    <label className="food-ai-text">描述吃了什麼<textarea rows={3} maxLength={500} placeholder="例如：午餐吃 180g 熟雞胸、半碗白飯和一顆蛋" value={text} onChange={(event) => setText(event.target.value)} /></label>
+    <label className="food-ai-text">描述吃了什麼<textarea rows={3} maxLength={500} placeholder="例如：午餐吃一碗飯、烤魚和一份青菜" value={text} onChange={(event) => setText(event.target.value)} /></label>
     <div className="food-ai-actions"><button type="button" className="primary" disabled={!text.trim() || busy || !online || !configured} onClick={startParse}><Search />{busy ? '處理中…' : !configured ? 'AI 尚未設定' : !online ? '離線時不可用' : '解析並搜尋'}</button><button type="button" onClick={onManual}>改用手動新增</button></div>
     {message && <p className="ai-status-message" role="status" aria-live="polite">{message}</p>}
     {items.length > 0 && <div className="parsed-food-list" aria-label="AI 解析項目">{items.map((item, index) => <button type="button" className={activeIndex === index ? 'active' : ''} key={`${item.rawText}-${index}`} onClick={() => void searchItem(item, index)}><strong>{item.normalizedName}</strong><small>{item.amount == null ? '份量待確認' : `${item.amount} ${item.unit ?? ''}`} · {item.weightState === 'unknown' ? '生熟待確認' : item.weightState === 'raw' ? '生重' : '熟重'}</small>{item.confirmationQuestion && <span>{item.confirmationQuestion}</span>}</button>)}</div>}

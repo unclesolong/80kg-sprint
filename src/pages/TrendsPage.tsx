@@ -179,7 +179,7 @@ export function TrendsPage({ logs, settings }: { logs: DailyLog[]; settings: Cha
         <ResponsiveContainer width="100%" height="100%"><ComposedChart data={data} margin={{ top: 8, right: 10, bottom: 0, left: 0 }}>{chartGrid}<ChartXAxis interval={xInterval} /><YAxis width={38} tick={{ fill: 'var(--muted)', fontSize: 12 }} /><Line dataKey="sleep" stroke="var(--blue)" strokeWidth={2} dot={{ r: 2 }} connectNulls={false} isAnimationActive={false} /></ComposedChart></ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="身體感受" note="疲勞、飢餓與下肢／足底皆使用 0–5 刻度。" ariaLabel="疲勞、飢餓與下肢足底狀態折線" keys={[{ className: 'fatigue', label: '疲勞' }, { className: 'hunger', label: '飢餓' }, { className: 'leg', label: '下肢／足底' }]}>
+      <ChartCard title="身體感受" note="疲勞、飢餓與身體不適皆使用 0–5 刻度。" ariaLabel="疲勞、飢餓與身體不適狀態折線" keys={[{ className: 'fatigue', label: '疲勞' }, { className: 'hunger', label: '飢餓' }, { className: 'leg', label: '身體不適' }]}>
         <ResponsiveContainer width="100%" height="100%"><ComposedChart data={data} margin={{ top: 8, right: 10, bottom: 0, left: 0 }}>{chartGrid}<ChartXAxis interval={xInterval} /><YAxis width={30} domain={[0, 5]} ticks={[0, 1, 2, 3, 4, 5]} tick={{ fill: 'var(--muted)', fontSize: 12 }} /><Line dataKey="fatigue" stroke="var(--v6-danger)" strokeWidth={1.5} dot={false} connectNulls={false} isAnimationActive={false} /><Line dataKey="hunger" stroke="var(--v6-warning)" strokeWidth={1.5} dot={false} connectNulls={false} isAnimationActive={false} /><Line dataKey="leg" stroke="var(--v6-chart-leg)" strokeWidth={1.5} dot={false} connectNulls={false} isAnimationActive={false} /></ComposedChart></ResponsiveContainer>
       </ChartCard>
 

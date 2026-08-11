@@ -7,6 +7,7 @@ const validPlan = {
   schemaVersion: 1,
   status: 'ok',
   selectedTargets: { calorieTargetKcal: 1800, proteinMinG: 120, proteinMaxG: 150, waterTargetMl: 2400, expectedWeeklyLossKg: 0.4, aerobicMinutesPerWeek: 120, strengthDaysPerWeek: 2, eveningReserveKcal: 170 },
+  energyPlan: { restingEnergyKcal: 1750, activeEnergyKcal: 450, estimatedTdeeKcal: 2200, source: 'profile_wearable_average', confidence: 'medium', sampleCount: 14 },
   focusTasks: ['記錄三餐'], comment, assumptions: [], warnings: []
 }
 const bounds: SafetyBounds = {
@@ -73,4 +74,3 @@ describe('strict AI response schemas', () => {
     expect(parseFoodParseOutput({ schemaVersion: 1, items: [item], unparsedText: [] }).valid).toBe(false)
   })
 })
-

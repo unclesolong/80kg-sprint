@@ -108,25 +108,25 @@ const buildPrimaryAction = (
     .sort((left, right) => left.date.localeCompare(right.date))
   const previous = priorLogs.at(-1)
   const beforePrevious = priorLogs.at(-2)
-  const legIncreasing = previous?.lowerLegTightness != null && log.lowerLegTightness != null && log.lowerLegTightness > previous.lowerLegTightness
-  const legWorseningTwoDays = legIncreasing && beforePrevious?.lowerLegTightness != null && previous!.lowerLegTightness! > beforePrevious.lowerLegTightness
+  const discomfortIncreasing = previous?.lowerLegTightness != null && log.lowerLegTightness != null && log.lowerLegTightness > previous.lowerLegTightness
+  const discomfortWorseningTwoDays = discomfortIncreasing && beforePrevious?.lowerLegTightness != null && previous!.lowerLegTightness! > beforePrevious.lowerLegTightness
   const concerningPainNote = /腫脹|發紅|尖銳|無法.*走|不能.*走/u.test(log.painNotes ?? '')
 
-  if (concerningPainNote || legWorseningTwoDays) return {
-    title: '下肢／足底狀況惡化，今天恢復',
-    detail: '停止補跑，改成休息或不痛的輕鬆走路；若持續惡化請尋求專業評估。',
+  if (concerningPainNote || discomfortWorseningTwoDays) return {
+    title: '身體不適正在惡化，今天先恢復',
+    detail: '停止會加重症狀的活動；若持續惡化或影響日常生活，請尋求專業評估。',
     stage: 'morning',
     tone: 'warn'
   }
   if ((log.lowerLegTightness ?? 0) >= 3) return {
-    title: '今天是恢復日，不補跑',
-    detail: '優先休息或不痛的低衝擊活動，不需要硬湊活動數字。',
+    title: '今天優先恢復',
+    detail: '休息或只做不會加重不適的低強度活動，不需要硬湊活動數字。',
     stage: 'morning',
     tone: 'warn'
   }
-  if (log.lowerLegTightness === 2 || legIncreasing) return {
-    title: '今天先保護下肢',
-    detail: '不要補跑；自然走路沒有加劇時，輕鬆走 10–20 分鐘即可。',
+  if (log.lowerLegTightness === 2 || discomfortIncreasing) return {
+    title: '今天留意身體不適',
+    detail: '避免會加重症狀的活動，並觀察日常活動後是否惡化。',
     stage: 'morning',
     tone: 'near'
   }
@@ -138,7 +138,7 @@ const buildPrimaryAction = (
   }
   if (log.sleepHours == null) return {
     title: '補上前一晚睡眠',
-    detail: '填寫睡眠時數與下肢緊繃程度。',
+    detail: '填寫睡眠時數；身體不適可在選填欄位補充。',
     stage: 'morning',
     tone: 'near'
   }
@@ -148,13 +148,13 @@ const buildPrimaryAction = (
     stage: 'food',
     tone: 'near'
   }
-  if ((log.proteinG ?? 0) < targets.protein.min) return {
+  if (targets.guidance.protein && (log.proteinG ?? 0) < targets.protein.min) return {
     title: '下一餐優先安排蛋白質',
     detail: `目前 ${rounded(log.proteinG ?? 0)} g，目標至少 ${rounded(targets.protein.min)} g。`,
     stage: 'food',
     tone: 'near'
   }
-  if ((log.waterMl ?? 0) < targets.waterTargetMl) {
+  if (targets.guidance.water && (log.waterMl ?? 0) < targets.waterTargetMl) {
     const waterStep = targets.waterTargetMl - (log.waterMl ?? 0) <= 250 ? 250 : 500
     return {
       title: `先補 ${waterStep} ml 白開水`,
@@ -164,28 +164,24 @@ const buildPrimaryAction = (
     }
   }
   const activity = activityTotals(log)
-  if (activity.effectiveActiveKcal == null || log.restingKcal == null || log.exerciseMinutes == null || log.steps == null) return {
-    title: '晚上抄入 Watch 四個數字',
-    detail: '活動、靜態能量、運動分鐘與步數。',
-    stage: 'evening',
-    tone: 'near'
-  }
-  if (log.hungerLevel == null || log.fatigueLevel == null || log.highSaltMeal == null) return {
-    title: '補上今晚的身體感受',
-    detail: '記錄飢餓、疲勞與高鹽餐，再完成結算。',
+  if (targets.guidance.activity && (activity.effectiveActiveKcal == null || log.restingKcal == null || log.exerciseMinutes == null || log.steps == null)) return {
+    title: '更新今天的活動摘要',
+    detail: '可從穿戴裝置或其他來源填入活動能量、靜止能量、運動分鐘與步數。',
     stage: 'evening',
     tone: 'near'
   }
   if (!log.dayFinalized) return log.needsRefinalization
     ? {
         title: '資料已更新，請重新結算',
-        detail: '確認最新飲食、活動與身體感受後，再完成今天。',
+        detail: '確認最新飲食與活動後，再完成今天；身體感受可依需要補充。',
         stage: 'evening',
         tone: 'near'
       }
     : {
         title: '今天可以完成結算',
-        detail: activityRemaining === 0
+        detail: !targets.guidance.activity
+          ? '確認今天的紀錄後即可完成；活動與身體感受皆可選填。'
+          : activityRemaining === 0
           ? '活動已達基本目標，不需要硬湊。'
           : `活動還差 ${rounded(activityRemaining)} kcal；身體感覺良好時輕鬆走即可。`,
         stage: 'evening',
@@ -193,24 +189,24 @@ const buildPrimaryAction = (
       }
   return {
     title: '今天完成了，可以休息',
-    detail: '若再吃東西或更新 Watch，系統會自動要求重新結算。',
+    detail: '若再更新飲食或活動資料，系統會自動要求重新結算。',
     stage: 'evening',
     tone: 'good'
   }
 }
 
-const buildStages = (log: DailyLog): TodayStageModel[] => {
+const buildStages = (log: DailyLog, targets: DailyTargetContext): TodayStageModel[] => {
   const activity = activityTotals(log)
   const done = {
-    morning: log.weightKg != null && log.weightCondition === 'morning_fasted' && log.sleepHours != null && log.bowelMovement !== 'unrecorded' && log.lowerLegTightness != null,
-    food: log.intakeKcal != null && log.proteinG != null && log.waterMl != null,
+    morning: log.weightKg != null && log.weightCondition === 'morning_fasted' && log.sleepHours != null,
+    food: log.intakeKcal != null && log.proteinG != null && (!targets.guidance.water || log.waterMl != null),
     evening: log.dayFinalized === true
   }
   const current = !done.morning ? 'morning' : !done.food ? 'food' : 'evening'
   const definitions: Array<Omit<TodayStageModel, 'status'>> = [
     { id: 'morning', label: '早上', note: '體重 · 睡眠' },
     { id: 'food', label: '飲食', note: '餐點 · 白水' },
-    { id: 'evening', label: '晚上', note: activity.effectiveActiveKcal != null ? 'Watch · 結算' : 'Watch · 感受' }
+    { id: 'evening', label: '晚上', note: activity.effectiveActiveKcal != null ? '活動摘要 · 結算' : '選填摘要 · 結算' }
   ]
   return definitions.map((item) => ({
     ...item,
@@ -250,7 +246,8 @@ export const buildTodayDashboardModel = ({
         targetWeightKg: plan.goalWeightKg
       }
     : settings
-  const trendStatus = weightTrendStatus(allLogs, today, trendSettings).status
+  const hasWeightTarget = trendSettings.targetWeightKg > 0 && trendSettings.baselineWeightKg > 0
+  const trendStatus = hasWeightTarget ? weightTrendStatus(allLogs, today, trendSettings).status : 'collecting'
 
   const details = ensureMealDetails(log)
   const breakfastKcal = mealSubtotal(details, 'breakfast').kcal
@@ -260,9 +257,11 @@ export const buildTodayDashboardModel = ({
   const reserveAlreadyLogged = Boolean(planVersion && [...details.breakfast, ...details.lunch, ...details.dinner, ...details.evening]
     .some((line) => line.templateId && planVersion.reservedTemplateIds.includes(line.templateId)))
   const reservedEveningKcal = planVersion && !reserveAlreadyLogged ? Math.max(0, planVersion.eveningReserveKcal) : 0
-  const dinnerBudgetKcal = Math.max(0, targets.calories.max - breakfastKcal - lunchKcal - eveningKcal - reservedEveningKcal)
+  const dinnerBudgetKcal = targets.guidance.calories
+    ? Math.max(0, targets.calories.max - breakfastKcal - lunchKcal - eveningKcal - reservedEveningKcal)
+    : 0
   const effectiveKcal = activityTotals(log).effectiveActiveKcal
-  const activityRemaining = Math.max(0, targets.activity.minimum - (effectiveKcal ?? 0))
+  const activityRemaining = targets.guidance.activity ? Math.max(0, targets.activity.minimum - (effectiveKcal ?? 0)) : 0
   const consumedKcal = log.intakeKcal ?? 0
 
   return {
@@ -274,7 +273,7 @@ export const buildTodayDashboardModel = ({
       dayNumber,
       totalDays,
       progressPercent,
-      targetWeightKg: plan?.goalWeightKg ?? settings.targetWeightKg
+      targetWeightKg: plan?.goalWeightKg ?? (settings.targetWeightKg > 0 ? settings.targetWeightKg : undefined)
     },
     weight: {
       currentKg,
@@ -288,8 +287,8 @@ export const buildTodayDashboardModel = ({
       minimumKcal: targets.calories.min,
       centerKcal: targets.calories.center,
       maximumKcal: targets.calories.max,
-      remainingToMaximumKcal: Math.max(0, targets.calories.max - consumedKcal),
-      overMaximumKcal: Math.max(0, consumedKcal - targets.calories.max)
+      remainingToMaximumKcal: targets.guidance.calories ? Math.max(0, targets.calories.max - consumedKcal) : 0,
+      overMaximumKcal: targets.guidance.calories ? Math.max(0, consumedKcal - targets.calories.max) : 0
     },
     dinner: {
       budgetKcal: dinnerBudgetKcal,
@@ -305,19 +304,19 @@ export const buildTodayDashboardModel = ({
       effectiveKcal,
       minimumKcal: targets.activity.minimum,
       remainingToMinimumKcal: activityRemaining,
-      basicGoalReached: effectiveKcal != null && effectiveKcal >= targets.activity.minimum
+      basicGoalReached: targets.guidance.activity && effectiveKcal != null && effectiveKcal >= targets.activity.minimum
     },
     water: {
       currentMl: log.waterMl ?? 0,
       targetMl: targets.waterTargetMl,
-      remainingMl: Math.max(0, targets.waterTargetMl - (log.waterMl ?? 0))
+      remainingMl: targets.guidance.water ? Math.max(0, targets.waterTargetMl - (log.waterMl ?? 0)) : 0
     },
     finalization: {
       finalized: log.dayFinalized === true,
       needsRefinalization: log.needsRefinalization === true && log.dayFinalized !== true
     },
     primaryAction: buildPrimaryAction(log, allLogs, targets, activityRemaining),
-    stages: buildStages(log),
+    stages: buildStages(log, targets),
     targets
   }
 }

@@ -19,6 +19,7 @@ export interface UserProfile {
   wearable: 'apple_watch' | 'other' | 'none'
   averageRestingEnergyKcal?: number
   averageActiveEnergyKcal?: number
+  wearableObservationDays?: number
   dietaryPattern?: 'omnivore' | 'vegetarian' | 'vegan' | 'other'
   foodRestrictions: string[]
   goalPace: GoalPace
@@ -96,6 +97,8 @@ export interface PlanVersion {
   calorieTargetKcal: number
   calorieRangeMinKcal: number
   calorieRangeMaxKcal: number
+  /** Optional only for backward compatibility with planner versions created before V06.3. */
+  energyPlan?: DailyEnergyPlan
   proteinMinG: number
   proteinMaxG: number
   waterTargetMl: number
@@ -150,6 +153,7 @@ export interface WeeklyReview {
 export interface PlannerDraft {
   goalDate: string
   calorieTargetKcal: number
+  energyPlan: DailyEnergyPlan
   proteinMinG: number
   proteinMaxG: number
   waterTargetMl: number
@@ -217,5 +221,15 @@ export interface TdeeEstimate {
   value: number
   confidence: ConfidenceLevel
   source: 'wearable_logs' | 'profile_wearable_average' | 'mifflin'
+  sampleCount: number
+}
+
+/** Daily device-style energy rows used by onboarding, PlanVersion and the home target table. */
+export interface DailyEnergyPlan {
+  restingEnergyKcal: number
+  activeEnergyKcal: number
+  estimatedTdeeKcal: number
+  source: TdeeEstimate['source']
+  confidence: ConfidenceLevel
   sampleCount: number
 }

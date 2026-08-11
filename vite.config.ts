@@ -29,9 +29,9 @@ export default defineConfig(({ command }) => {
           theme_color: '#0a0d0c',
           background_color: '#0a0d0c',
           icons: [
-            { src: `${base}pwa-192x192.png`, sizes: '192x192', type: 'image/png' },
-            { src: `${base}pwa-512x512.png`, sizes: '512x512', type: 'image/png' },
-            { src: `${base}maskable-512x512.png`, sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+            { src: `${base}app-icon-v2-192x192.png`, sizes: '192x192', type: 'image/png', purpose: 'any' },
+            { src: `${base}app-icon-v2-512x512.png`, sizes: '512x512', type: 'image/png', purpose: 'any' },
+            { src: `${base}app-icon-v2-maskable-512x512.png`, sizes: '512x512', type: 'image/png', purpose: 'maskable' }
           ]
         },
         workbox: {

@@ -29,6 +29,11 @@ describe('AI plan domain safety', () => {
     expect(issues).toContain('weekly_loss_percent_out_of_bounds')
   })
 
+  it('rejects AI changes to deterministic energy provenance', () => {
+    const output = { ...planOutput, energyPlan: { ...planOutput.energyPlan, activeEnergyKcal: 650, estimatedTdeeKcal: 2_400 } }
+    expect(validatePlanAIOutputSafety(output, planRequest)).toContain('energy_plan_provenance_mismatch')
+  })
+
   it('independently rejects client bounds below the self-serve calorie floor', () => {
     const request = {
       ...planRequest,

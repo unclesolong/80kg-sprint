@@ -1,6 +1,6 @@
 import { effectiveActiveKcal } from '../calculations'
 import type { DailyLog } from '../types'
-import type { GoalPace, NumericRange, PlannerDraft, SafetyBounds, TdeeEstimate, UserProfile } from './types'
+import type { DailyEnergyPlan, GoalPace, NumericRange, PlannerDraft, SafetyBounds, TdeeEstimate, UserProfile } from './types'
 
 export const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
 export const roundTo50 = (value: number) => Math.round(value / 50) * 50
@@ -22,19 +22,58 @@ const trimmedMean = (values: number[]) => {
   return sample.reduce((sum, value) => sum + value, 0) / sample.length
 }
 
-export const deriveTdeeEstimate = (profile: UserProfile, logs: DailyLog[]): TdeeEstimate => {
+/**
+ * Wearable averages are optional, but a partial or out-of-range set must not
+ * reach the energy calculation. HTML min/max attributes alone do not protect
+ * button-driven onboarding or imported/programmatically supplied values.
+ */
+export const hasValidWearableEnergyInput = (profile: Pick<UserProfile,
+  'wearable' | 'averageRestingEnergyKcal' | 'averageActiveEnergyKcal' | 'wearableObservationDays'
+>): boolean => {
+  if (profile.wearable === 'none') return true
+  const resting = profile.averageRestingEnergyKcal
+  const active = profile.averageActiveEnergyKcal
+  const days = profile.wearableObservationDays
+  if (resting == null && active == null && days == null) return true
+  return resting != null
+    && Number.isFinite(resting)
+    && resting >= 500
+    && resting <= 5_000
+    && active != null
+    && Number.isFinite(active)
+    && active >= 0
+    && active <= 3_000
+    && days != null
+    && Number.isInteger(days)
+    && days >= 1
+    && days <= 30
+}
+
+export const deriveDailyEnergyPlan = (profile: UserProfile, logs: DailyLog[]): DailyEnergyPlan => {
   const wearableDays = logs
     .filter((log) => log.restingKcal != null && effectiveActiveKcal(log) != null)
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 14)
-    .map((log) => log.restingKcal! + effectiveActiveKcal(log)!)
+    .map((log) => ({ resting: log.restingKcal!, active: effectiveActiveKcal(log)! }))
   if (wearableDays.length >= 7) {
-    return { value: roundTo50(trimmedMean(wearableDays)), confidence: wearableDays.length >= 14 ? 'high' : 'medium', source: 'wearable_logs', sampleCount: wearableDays.length }
+    const restingEnergyKcal = roundTo50(trimmedMean(wearableDays.map((day) => day.resting)))
+    const activeEnergyKcal = roundTo50(trimmedMean(wearableDays.map((day) => day.active)))
+    return { restingEnergyKcal, activeEnergyKcal, estimatedTdeeKcal: restingEnergyKcal + activeEnergyKcal, confidence: wearableDays.length >= 14 ? 'high' : 'medium', source: 'wearable_logs', sampleCount: wearableDays.length }
   }
-  if (profile.averageRestingEnergyKcal != null && profile.averageActiveEnergyKcal != null) {
-    return { value: roundTo50(profile.averageRestingEnergyKcal + profile.averageActiveEnergyKcal), confidence: 'medium', source: 'profile_wearable_average', sampleCount: 0 }
+  if (profile.wearable !== 'none' && hasValidWearableEnergyInput(profile) && profile.averageRestingEnergyKcal != null && profile.averageActiveEnergyKcal != null) {
+    const restingEnergyKcal = roundTo50(profile.averageRestingEnergyKcal)
+    const activeEnergyKcal = roundTo50(profile.averageActiveEnergyKcal)
+    const sampleCount = Math.max(0, Math.round(profile.wearableObservationDays ?? 0))
+    return { restingEnergyKcal, activeEnergyKcal, estimatedTdeeKcal: restingEnergyKcal + activeEnergyKcal, confidence: 'medium', source: 'profile_wearable_average', sampleCount }
   }
-  return { value: roundTo50(calculateBmr(profile) * activityFactor(profile)), confidence: 'low', source: 'mifflin', sampleCount: 0 }
+  const restingEnergyKcal = roundTo50(calculateBmr(profile))
+  const estimatedTdeeKcal = roundTo50(calculateBmr(profile) * activityFactor(profile))
+  return { restingEnergyKcal, activeEnergyKcal: Math.max(0, estimatedTdeeKcal - restingEnergyKcal), estimatedTdeeKcal, confidence: 'low', source: 'mifflin', sampleCount: 0 }
+}
+
+export const deriveTdeeEstimate = (profile: UserProfile, logs: DailyLog[]): TdeeEstimate => {
+  const energy = deriveDailyEnergyPlan(profile, logs)
+  return { value: energy.estimatedTdeeKcal, confidence: energy.confidence, source: energy.source, sampleCount: energy.sampleCount }
 }
 
 export const minimumSelfServeCalories = (profile: UserProfile) =>
@@ -83,18 +122,25 @@ export const calculateSafetyBounds = (profile: UserProfile, logs: DailyLog[], st
   }
 }
 
-export const createLocalPlanDraft = (bounds: SafetyBounds, pace: GoalPace): PlannerDraft => ({
+const fallbackEnergyPlanFromBounds = (bounds: SafetyBounds): DailyEnergyPlan => {
+  const estimatedTdeeKcal = roundTo50(Math.max(bounds.dailyCalories.max, bounds.dailyCalories.recommended) / 0.9)
+  const restingEnergyKcal = roundTo50(estimatedTdeeKcal * 0.75)
+  return { restingEnergyKcal, activeEnergyKcal: estimatedTdeeKcal - restingEnergyKcal, estimatedTdeeKcal, source: 'mifflin', confidence: 'low', sampleCount: 0 }
+}
+
+export const createLocalPlanDraft = (bounds: SafetyBounds, pace: GoalPace, energyPlan: DailyEnergyPlan = fallbackEnergyPlanFromBounds(bounds)): PlannerDraft => ({
   goalDate: pace === 'aggressive' ? bounds.earliestGoalDate : pace === 'gentle' ? bounds.latestSuggestedGoalDate : bounds.recommendedGoalDate,
   calorieTargetKcal: bounds.dailyCalories.recommended,
+  energyPlan: { ...energyPlan },
   proteinMinG: bounds.proteinG.min,
   proteinMaxG: bounds.proteinG.max,
   waterTargetMl: bounds.waterMl.recommended,
   aerobicMinutesPerWeek: bounds.aerobicMinutesPerWeek.recommended,
   strengthDaysPerWeek: bounds.strengthDaysPerWeek.recommended,
   expectedWeeklyLossKg: bounds.weeklyLossKg.recommended,
-  eveningReserveKcal: 170,
-  reservedTemplateIds: ['soy_chia'],
-  focusTasks: ['穩定記錄三餐', '白開水分次達標', '疼痛時不補跑'],
+  eveningReserveKcal: 0,
+  reservedTemplateIds: [],
+  focusTasks: ['穩定記錄飲食與活動', '依每週趨勢再調整目標'],
   comment: {
     title: '先建立可持續的安全節奏',
     summary: '這份本地計畫依你的基本資料、活動量與安全邊界計算；所有數字都可以在允許範圍內調整。',

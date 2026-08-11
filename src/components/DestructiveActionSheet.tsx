@@ -2,8 +2,8 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Download, ShieldAlert, Trash2, X } from 'lucide-react'
 
-const defaultDeletedItems = ['DailyLog', 'Sprint 設定', '自訂食物'] as const
-const defaultPreservedItems = ['Planner', '匯出的 JSON'] as const
+const defaultDeletedItems = ['所有每日紀錄', '基本追蹤設定', '自訂食物', '培育進度與成就'] as const
+const defaultPreservedItems = ['長期計畫', '已下載的備份檔'] as const
 
 export interface DestructiveActionSheetProps {
   title?: string
@@ -28,7 +28,7 @@ export function matchesConfirmationPhrase(value: string, confirmationPhrase: str
 }
 
 export function DestructiveActionSheet({
-  title = '清除 7 日 Sprint 資料',
+  title = '清除本機追蹤與培育資料',
   description,
   deleteItems = defaultDeletedItems,
   preserveItems = defaultPreservedItems,
@@ -191,7 +191,7 @@ export function DestructiveActionSheet({
       <header className="v6-sheet-header">
         <div className="v6-sheet-heading">
           <span className="v6-sheet-icon v6-sheet-icon-danger" aria-hidden="true"><ShieldAlert /></span>
-          <div><p className="v6-sheet-eyebrow">DESTRUCTIVE ACTION</p><h2 id={titleId}>{title}</h2></div>
+          <div><p className="v6-sheet-eyebrow">資料刪除確認</p><h2 id={titleId}>{title}</h2></div>
         </div>
         <button className="v6-sheet-close" type="button" aria-label={cancelLabel} disabled={locked} onClick={onClose}><X aria-hidden="true" /></button>
       </header>

@@ -2,6 +2,17 @@ import { describe, expect, it } from 'vitest'
 import { activityTotals, cumulativeDeficit, dailyDeficit, dinnerBudgetSummary, effectiveActiveKcal, estimatedTDEE, fatEquivalentKg, finalizedDeficit, linearRegressionProjection, mealTotals, movingAverage, nutritionCoverageDisplay, shouldShowSevenDayAverage, sleepDurationHours, targetWeightForDate, targetWeightRangeForDate, weightPrediction, weightTrendStatus } from './calculations'
 import { defaultMealDetails, defaultSettings, emptyLog } from './defaults'
 
+const legacyTargetSettings = {
+  ...defaultSettings,
+  startDate: '2026-08-01',
+  finalWeighInDate: '2026-08-08',
+  baselineWeightKg: 81.1,
+  targetWeightKg: 80,
+  intakeKcalMinimum: 1_700,
+  intakeKcalMaximum: 1_850,
+  guidanceMode: 'legacy_targets' as const
+}
+
 describe('能量計算', () => {
   it('計算 TDEE 與每日赤字', () => {
     const log = { ...emptyLog('2026-08-01'), restingKcal: 1800, activeKcal: 660, intakeKcal: 1800 }
@@ -19,7 +30,7 @@ describe('能量計算', () => {
       { ...emptyLog('2026-08-01'), restingKcal: 1800, activeKcal: 600, intakeKcal: 1800 },
       { ...emptyLog('2026-08-02'), restingKcal: 1800, activeKcal: 700, intakeKcal: 1800 }
     ]
-    expect(cumulativeDeficit(logs, defaultSettings)).toBe(1300)
+    expect(cumulativeDeficit(logs, legacyTargetSettings)).toBe(1300)
   })
 
   it('計算脂肪等值估算', () => expect(fatEquivalentKg(7700)).toBe(1))
@@ -74,7 +85,7 @@ describe('能量計算', () => {
 
 describe('體重趨勢', () => {
   it('依實際基準體重建立目標線', () => {
-    const settings = { ...defaultSettings, baselineWeightKg: 82, targetWeightKg: 80 }
+    const settings = { ...legacyTargetSettings, baselineWeightKg: 82, targetWeightKg: 80 }
     expect(targetWeightForDate('2026-08-01', settings)).toBe(82)
     expect(targetWeightForDate('2026-08-04', settings)).toBeCloseTo(81.142857, 5)
     expect(targetWeightForDate('2026-08-08', settings)).toBe(80)
@@ -98,7 +109,7 @@ describe('體重趨勢', () => {
   })
 
   it('目標使用正負 0.3 kg 區間', () => {
-    const range = targetWeightRangeForDate('2026-08-01', defaultSettings)
+    const range = targetWeightRangeForDate('2026-08-01', legacyTargetSettings)
     expect(range.lower).toBeCloseTo(80.8)
     expect(range.upper).toBeCloseTo(81.4)
   })
@@ -136,7 +147,7 @@ describe('V05 衍生計算', () => {
     details.breakfast = [line('breakfast', 560)]
     details.lunch = [line('lunch', 530)]
     details.evening = [line('soy-chia', 173)]
-    expect(dinnerBudgetSummary(details, defaultSettings)).toMatchObject({ budget: 587, eveningKcal: 173 })
+    expect(dinnerBudgetSummary(details, legacyTargetSettings)).toMatchObject({ budget: 587, eveningKcal: 173 })
   })
 
   it('晚餐超標時 remaining 不會成為負數', () => {
@@ -145,7 +156,7 @@ describe('V05 衍生計算', () => {
     details.lunch = [line('lunch', 530)]
     details.evening = [line('evening', 173)]
     details.dinner = [line('dinner', 670)]
-    expect(dinnerBudgetSummary(details, defaultSettings)).toMatchObject({ budget: 587, remaining: 0, over: 83 })
+    expect(dinnerBudgetSummary(details, legacyTargetSettings)).toMatchObject({ budget: 587, remaining: 0, over: 83 })
   })
 
   it('營養欄位不完整時顯示至少與部分資料涵蓋率', () => {

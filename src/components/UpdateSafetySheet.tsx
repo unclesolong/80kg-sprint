@@ -176,7 +176,7 @@ export function UpdateSafetySheet({
       <header className="v6-sheet-header">
         <div className="v6-sheet-heading">
           <span className="v6-sheet-icon" aria-hidden="true"><ShieldCheck /></span>
-          <div><p className="v6-sheet-eyebrow">DATA SAFETY</p><h2 id={titleId}>更新前確認</h2></div>
+          <div><p className="v6-sheet-eyebrow">資料保護</p><h2 id={titleId}>更新前確認</h2></div>
         </div>
         <button className="v6-sheet-close" type="button" aria-label="稍後再更新" disabled={locked} onClick={onClose}><X aria-hidden="true" /></button>
       </header>
@@ -185,9 +185,9 @@ export function UpdateSafetySheet({
         <section className="v6-integrity-summary" aria-labelledby={`${titleId}-summary`}>
           <h3 id={`${titleId}-summary`}>目前裝置資料</h3>
           <dl>
-            <div><dt>DailyLog</dt><dd>{summary.logCount} 筆</dd></div>
-            <div><dt>MealLine</dt><dd>{summary.mealLineCount} 項</dd></div>
-            <div><dt>Workout</dt><dd>{summary.workoutCount} 筆</dd></div>
+            <div><dt>每日紀錄</dt><dd>{summary.logCount} 筆</dd></div>
+            <div><dt>餐點項目</dt><dd>{summary.mealLineCount} 項</dd></div>
+            <div><dt>運動紀錄</dt><dd>{summary.workoutCount} 筆</dd></div>
             <div><dt>日期範圍</dt><dd>{formatIntegrityDateRange(summary)}</dd></div>
           </dl>
         </section>
@@ -202,7 +202,7 @@ export function UpdateSafetySheet({
             onClick={() => { void runAction('core', onExportCore, () => setCoreExported(true)) }}
           >
             <Download aria-hidden="true" />
-            <span>{activeAction === 'core' ? '正在匯出…' : '匯出每日紀錄 JSON'}</span>
+            <span>{activeAction === 'core' ? '正在匯出…' : '匯出追蹤與培育 JSON'}</span>
             {coreExported && <span className="v6-action-status" role="status">已匯出</span>}
           </button>
           {hasPlanner && onExportPlanner && <button
@@ -211,7 +211,7 @@ export function UpdateSafetySheet({
             onClick={() => { void runAction('planner', onExportPlanner, () => setPlannerExported(true)) }}
           >
             <Download aria-hidden="true" />
-            <span>{activeAction === 'planner' ? '正在匯出…' : '匯出 Planner JSON'}</span>
+            <span>{activeAction === 'planner' ? '正在匯出…' : '匯出長期計畫備份'}</span>
             {plannerExported && <span className="v6-action-status" role="status">已匯出</span>}
           </button>}
         </div>

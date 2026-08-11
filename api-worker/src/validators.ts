@@ -3,6 +3,7 @@ import type {
   FoodParseRequest,
   FoodSearchRequest,
   NumericRange,
+  DailyEnergyPlan,
   PlanAIOutput,
   PlanGenerateRequest,
   SafetyBounds,
@@ -121,6 +122,24 @@ const validateTargetsInto = (value: unknown, path: string, issues: string[]): va
   }
   exactKeys(value, TARGET_KEYS, path, issues)
   for (const key of TARGET_KEYS) numberValue(value[key], `${path}.${key}`, issues)
+  return true
+}
+
+const ENERGY_KEYS = ['restingEnergyKcal', 'activeEnergyKcal', 'estimatedTdeeKcal', 'source', 'confidence', 'sampleCount'] as const
+
+const validateEnergyPlanInto = (value: unknown, path: string, issues: string[]): value is DailyEnergyPlan => {
+  if (!isRecord(value)) {
+    issues.push(`${path}.type`)
+    return false
+  }
+  exactKeys(value, ENERGY_KEYS, path, issues)
+  numberValue(value.restingEnergyKcal, `${path}.restingEnergyKcal`, issues, { min: 500, max: 5000 })
+  numberValue(value.activeEnergyKcal, `${path}.activeEnergyKcal`, issues, { min: 0, max: 3000 })
+  numberValue(value.estimatedTdeeKcal, `${path}.estimatedTdeeKcal`, issues, { min: 800, max: 7000 })
+  enumValue(value.source, ['wearable_logs', 'profile_wearable_average', 'mifflin'], `${path}.source`, issues)
+  enumValue(value.confidence, ['low', 'medium', 'high'], `${path}.confidence`, issues)
+  numberValue(value.sampleCount, `${path}.sampleCount`, issues, { min: 0, max: 30, integer: true })
+  if (isFiniteNumber(value.restingEnergyKcal) && isFiniteNumber(value.activeEnergyKcal) && isFiniteNumber(value.estimatedTdeeKcal) && Math.abs(value.restingEnergyKcal + value.activeEnergyKcal - value.estimatedTdeeKcal) > 100) issues.push(`${path}.total`)
   return true
 }
 
@@ -338,8 +357,9 @@ export const validatePlanGenerateRequest = (value: unknown): ValidationResult<Pl
   if (!isRecord(value.localRecommendation)) {
     issues.push('request.localRecommendation.type')
   } else {
-    exactKeys(value.localRecommendation, ['selectedTargets', 'focusTasks'], 'request.localRecommendation', issues)
+    exactKeys(value.localRecommendation, ['selectedTargets', 'energyPlan', 'focusTasks'], 'request.localRecommendation', issues)
     validateTargetsInto(value.localRecommendation.selectedTargets, 'request.localRecommendation.selectedTargets', issues)
+    validateEnergyPlanInto(value.localRecommendation.energyPlan, 'request.localRecommendation.energyPlan', issues)
     stringArray(value.localRecommendation.focusTasks, 'request.localRecommendation.focusTasks', issues, {
       maxItems: 4,
       maxLength: 60,

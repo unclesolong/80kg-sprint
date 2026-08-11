@@ -39,6 +39,7 @@ export interface ReportSummary {
 }
 
 const minDate = (a: string, b: string) => (a < b ? a : b)
+const hasConfiguredGuidance = (settings: ChallengeSettings) => settings.guidanceMode !== 'tracking_only'
 
 const enumerateDates = (startDate: string, endDate: string): string[] => {
   const [startYear, startMonth, startDay] = startDate.split('-').map(Number)
@@ -230,6 +231,16 @@ const drawWeightProgress = (
   y: number,
   width: number
 ) => {
+  if (!hasConfiguredGuidance(settings)) {
+    fillRoundedRect(ctx, x, y, width, 12, 6, 'rgba(255,255,255,0.18)')
+    ctx.fillStyle = 'rgba(255,255,255,0.72)'
+    setFont(ctx, 17, 500)
+    ctx.fillText('純記錄模式', x, y + 38)
+    ctx.textAlign = 'right'
+    ctx.fillText('尚未套用體重目標', x + width, y + 38)
+    ctx.textAlign = 'left'
+    return
+  }
   const totalChange = settings.targetWeightKg - settings.baselineWeightKg
   const currentChange = latestWeightKg == null ? 0 : latestWeightKg - settings.baselineWeightKg
   const progress = totalChange === 0 ? 1 : Math.max(0, Math.min(1, currentChange / totalChange))
@@ -392,11 +403,11 @@ export const createReportCanvas = async (
   ctx.fill()
   ctx.fillStyle = colors.white
   setFont(ctx, 18, 700)
-  ctx.fillText('80KG SPRINT', margin + 77, 108)
+  ctx.fillText('減脂追蹤', margin + 77, 108)
 
   ctx.fillStyle = colors.white
   setFont(ctx, 48, 800)
-  ctx.fillText('挑戰期分析報告', margin + 34, 184)
+  ctx.fillText('追蹤期間分析報告', margin + 34, 184)
   ctx.fillStyle = 'rgba(255,255,255,0.72)'
   setFont(ctx, 22, 500)
   ctx.fillText(`${formatDate(summary.startDate)} — ${formatDate(summary.endDate)}`, margin + 36, 224)
@@ -428,13 +439,14 @@ export const createReportCanvas = async (
 
   const metricGap = 18
   const metricWidth = (contentWidth - metricGap * 2) / 3
+  const guided = hasConfiguredGuidance(settings)
   const metrics = [
-    ['平均攝取', rounded(summary.averageIntakeKcal), 'kcal', `目標 ${settings.intakeKcalMinimum}–${settings.intakeKcalMaximum}`],
-    ['平均蛋白質', rounded(summary.averageProteinG), 'g', `目標 ${settings.proteinMinimumG}–${settings.proteinMaximumG}`],
-    ['平均活動', rounded(summary.averageActiveKcal), 'kcal', `每日活動總值 · 目標 ${settings.activeKcalTarget}`],
-    ['平均飲水', rounded(summary.averageWaterMl), 'ml', `目標 ${settings.waterMinimumMl}–${settings.waterMaximumMl}`],
-    ['平均睡眠', rounded(summary.averageSleepHours, 1), '小時', `前一晚睡眠 · 目標 ≥ ${settings.sleepMinimumHours}`],
-    ['平均步數', rounded(summary.averageSteps), '步', `目標 ${settings.stepsMinimum.toLocaleString('zh-TW')}–${settings.stepsMaximum.toLocaleString('zh-TW')}`]
+    ['平均攝取', rounded(summary.averageIntakeKcal), 'kcal', guided ? `目標 ${settings.intakeKcalMinimum}–${settings.intakeKcalMaximum}` : '純記錄 · 未設定攝取目標'],
+    ['平均蛋白質', rounded(summary.averageProteinG), 'g', guided ? `目標 ${settings.proteinMinimumG}–${settings.proteinMaximumG}` : '純記錄 · 未設定蛋白質目標'],
+    ['平均活動', rounded(summary.averageActiveKcal), 'kcal', guided ? `每日活動總值 · 參考 ${settings.activeKcalTarget}` : '每日活動能量紀錄'],
+    ['平均飲水', rounded(summary.averageWaterMl), 'ml', guided ? `目標 ${settings.waterMinimumMl}–${settings.waterMaximumMl}` : '每日飲水紀錄'],
+    ['平均睡眠', rounded(summary.averageSleepHours, 1), '小時', guided ? `前一晚睡眠 · 目標 ≥ ${settings.sleepMinimumHours}` : '前一晚睡眠紀錄'],
+    ['平均步數', rounded(summary.averageSteps), '步', guided ? `目標 ${settings.stepsMinimum.toLocaleString('zh-TW')}–${settings.stepsMaximum.toLocaleString('zh-TW')}` : '每日步數紀錄']
   ] as const
   metrics.forEach((metric, index) => {
     const column = index % 3
@@ -476,14 +488,14 @@ export const createReportCanvas = async (
   ctx.fillText('閱讀說明', margin, footerTop + 38)
   ctx.fillStyle = colors.muted
   setFont(ctx, 16, 500)
-  let noteY = wrapText(ctx, `活動熱量使用每日摘要，加上僅標記為「尚未包含」的運動；已包含於 Watch 的明細不重複計算。`, margin, footerTop + 68, contentWidth, 25)
+  let noteY = wrapText(ctx, `活動熱量使用每日摘要，加上僅標記為「尚未包含」的運動；已包含於穿戴裝置或手動摘要的明細不重複計算。`, margin, footerTop + 68, contentWidth, 25)
   noteY = wrapText(ctx, `赤字只統計已完成日結的 ${summary.finalizedDays} 天；平均 ${rounded(summary.averageFinalDeficitKcal)} kcal，累積 ${rounded(summary.cumulativeFinalDeficitKcal)} kcal。`, margin, noteY, contentWidth, 25)
   noteY = wrapText(ctx, '熱量、營養與體重變化依輸入資料與估算值整理，僅供自我追蹤，不是醫療診斷。', margin, noteY, contentWidth, 25)
   wrapText(ctx, '隱私：本報告完全在此裝置產生，不會自動上傳；分享後請只交給你信任的對象。', margin, noteY, contentWidth, 25)
   ctx.fillStyle = '#89938e'
   setFont(ctx, 14, 500)
   ctx.textAlign = 'right'
-  ctx.fillText(`產生日期 ${formatDate(summary.generatedDate)} · 80KG Sprint`, REPORT_WIDTH - margin, REPORT_HEIGHT - 38)
+  ctx.fillText(`產生日期 ${formatDate(summary.generatedDate)} · 減脂追蹤`, REPORT_WIDTH - margin, REPORT_HEIGHT - 38)
   ctx.textAlign = 'left'
 
   return canvas
@@ -537,7 +549,7 @@ const deliverFile = async (file: File, text: string): Promise<ReportDelivery> =>
 
   if (canShareFiles) {
     try {
-      await navigator.share({ title: '80KG Sprint 挑戰期分析', text, files: [file] })
+      await navigator.share({ title: '減脂追蹤期間分析', text, files: [file] })
       return 'shared'
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return 'cancelled'
@@ -555,7 +567,7 @@ export const shareReportPng = async (
   asOfDate = localDateString()
 ): Promise<ReportDelivery> => {
   const blob = await createReportPngBlob(settings, logs, asOfDate)
-  const file = new File([blob], `80kg-sprint-report-${settings.startDate}-${minDate(settings.finalWeighInDate, asOfDate)}.png`, { type: 'image/png' })
+  const file = new File([blob], `fat-loss-report-${settings.startDate}-${minDate(settings.finalWeighInDate, asOfDate)}.png`, { type: 'image/png' })
   return deliverFile(file, '這份圖卡含個人健康紀錄，請只分享給你信任的對象。')
 }
 
@@ -565,6 +577,6 @@ export const shareReportPdf = async (
   asOfDate = localDateString()
 ): Promise<ReportDelivery> => {
   const blob = await createReportPdfBlob(settings, logs, asOfDate)
-  const file = new File([blob], `80kg-sprint-report-${settings.startDate}-${minDate(settings.finalWeighInDate, asOfDate)}.pdf`, { type: 'application/pdf' })
-  return deliverFile(file, '80KG Sprint 挑戰期分析 PDF；含個人健康紀錄。')
+  const file = new File([blob], `fat-loss-report-${settings.startDate}-${minDate(settings.finalWeighInDate, asOfDate)}.pdf`, { type: 'application/pdf' })
+  return deliverFile(file, '減脂追蹤期間分析 PDF；含個人健康紀錄。')
 }

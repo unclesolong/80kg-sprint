@@ -22,18 +22,19 @@ describe('UpdateSafetySheet', () => {
 
     expect(markup).toContain('role="dialog"')
     expect(markup).toContain('aria-modal="true"')
+    expect(markup).toContain('匯出追蹤與培育 JSON')
     expect(markup).toContain('更新前確認')
-    expect(markup).toContain('DailyLog</dt><dd>10 筆')
-    expect(markup).toContain('MealLine</dt><dd>68 項')
-    expect(markup).toContain('Workout</dt><dd>4 筆')
+    expect(markup).toContain('每日紀錄</dt><dd>10 筆')
+    expect(markup).toContain('餐點項目</dt><dd>68 項')
+    expect(markup).toContain('運動紀錄</dt><dd>4 筆')
     expect(markup).toContain('8/1–8/10')
     expect(markup).toContain('我已完成備份，並確認備份檔可開啟')
     expect(markup).toMatch(/<button[^>]*class="v6-primary-action"[^>]*disabled=""/)
     expect(markup).toContain('已完成備份，立即更新')
-    expect(markup).not.toContain('匯出 Planner JSON')
+    expect(markup).not.toContain('匯出長期計畫備份')
   })
 
-  it('shows Planner export only when Planner data and a callback are both available', () => {
+  it('shows long-term plan export only when plan data and a callback are both available', () => {
     const markup = renderToStaticMarkup(createElement(UpdateSafetySheet, {
       summary,
       hasPlanner: true,
@@ -43,7 +44,7 @@ describe('UpdateSafetySheet', () => {
       onConfirmUpdate: vi.fn()
     }))
 
-    expect(markup).toContain('匯出 Planner JSON')
+    expect(markup).toContain('匯出長期計畫備份')
   })
 
   it('formats same-day, ranged and empty integrity dates without timezone conversion', () => {

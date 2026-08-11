@@ -61,6 +61,7 @@ export function FoodAddSheet({ open, date, logs, defaultMeal, initialTab = 'rece
   const onCloseRef = useRef(onClose)
   const sheetRef = useRef<HTMLElement>(null)
   const discardDialogRef = useRef<HTMLDivElement>(null)
+  const manualNameInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { draftEntriesRef.current = draftEntries }, [draftEntries])
   useEffect(() => { onCloseRef.current = onClose }, [onClose])
@@ -112,6 +113,12 @@ export function FoodAddSheet({ open, date, logs, defaultMeal, initialTab = 'rece
       window.requestAnimationFrame(() => trigger.current?.focus({ preventScroll: true }))
     }
   }, [open])
+
+  useEffect(() => {
+    if (!open || tab !== 'manual') return
+    const frame = window.requestAnimationFrame(() => manualNameInputRef.current?.focus({ preventScroll: true }))
+    return () => window.cancelAnimationFrame(frame)
+  }, [open, tab])
 
   useEffect(() => {
     if (!open) return
@@ -240,6 +247,8 @@ export function FoodAddSheet({ open, date, logs, defaultMeal, initialTab = 'rece
   }), [draftEntries, details.ramen])
   const draftTotals = mealTotals(draftDetails)
   const normalizedQuery = query.trim().toLocaleLowerCase('zh-TW')
+  const listMode = primaryTabs.includes(tab)
+  const searching = listMode && Boolean(normalizedQuery)
   const matches = (value: string) => value.toLocaleLowerCase('zh-TW').includes(normalizedQuery)
   const searchResults = normalizedQuery ? [
     ...recent.filter((item) => matches(item.line.label)).map((item) => ({ id: `recent:${item.id}`, label: item.line.label, note: `最近使用 · ${item.line.amount} ${item.line.portionLabel ?? item.line.unit}`, add: () => addDraft(cloneForDraft(item.line, 'recent'), 'manual', meal, `recent:${item.id}`) })),
@@ -247,6 +256,22 @@ export function FoodAddSheet({ open, date, logs, defaultMeal, initialTab = 'rece
     ...templates.filter((item) => matches(`${item.name} ${item.description}`)).map((item) => ({ id: `template:${item.id}`, label: item.name, note: `套餐 · ${Math.round(item.kcal)} kcal`, add: () => addDraft(templateMealLine(item), 'template', meal, `template:${item.id}`) })),
     ...foods.filter((item) => matches(item.name)).map((item) => ({ id: `mine:${item.id}`, label: item.name, note: `我的食物 · ${Math.round(item.kcal)} kcal`, add: () => addDraft(customFoodMealLine(item), 'mine', meal, `mine:${item.id}`) }))
   ] : []
+
+  const switchTab = (nextTab: SheetTab) => {
+    if (savingRef.current) return
+    setQuery('')
+    setTab(nextTab)
+  }
+
+  const switchToManual = (suggestedName = query.trim()) => {
+    if (savingRef.current) return
+    if (suggestedName) {
+      setManual((current) => current.name.trim() ? current : { ...current, name: suggestedName })
+    }
+    setQuery('')
+    setTab('manual')
+    window.requestAnimationFrame(() => manualNameInputRef.current?.focus({ preventScroll: true }))
+  }
 
   const saveDraft = async () => {
     if (!draftEntries.length || savingRef.current) return
@@ -292,20 +317,22 @@ export function FoodAddSheet({ open, date, logs, defaultMeal, initialTab = 'rece
   return createPortal(<div className="food-sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) requestClose() }}>
     <section ref={sheetRef} className="food-sheet" role="dialog" aria-modal="true" aria-labelledby="food-sheet-title" aria-busy={saving}>
       <header><div><span>{dateTitle}</span><h2 id="food-sheet-title">批次新增食物</h2></div><button type="button" className="icon-button" aria-label="關閉新增食物" disabled={saving} onClick={requestClose}><X /></button></header>
-      <div className="food-sheet-tools">
-        <label className="food-search"><Search aria-hidden="true" /><input aria-label="搜尋食物" placeholder="搜尋食物、套餐、我的食物…" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
+      <div className={`food-sheet-tools${listMode ? '' : ' food-sheet-tools-form-mode'}`}>
+        {listMode
+          ? <label className="food-search"><Search aria-hidden="true" /><input aria-label="搜尋食物" placeholder="搜尋食物、套餐、我的食物…" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
+          : <div className="food-entry-mode"><strong>{tab === 'manual' ? '手動輸入食物' : 'AI 解析餐點'}</strong><small>{tab === 'manual' ? '輸入名稱與熱量即可加入' : '解析後仍由你確認資料'}</small></div>}
         <label className="sheet-meal-select">加入：<select aria-label="加入餐次" value={meal} onChange={(event) => setMeal(event.target.value as MealKey)}>{mealKeys.map((key) => <option value={key} key={key}>{mealLabels[key]}</option>)}</select></label>
       </div>
-      {!normalizedQuery && <><nav className="food-sheet-tabs" aria-label="食物清單">{primaryTabs.map((key) => <button type="button" className={tab === key ? 'active' : ''} aria-pressed={tab === key} key={key} onClick={() => setTab(key)}>{tabLabels[key]}</button>)}</nav><div className="v6-food-secondary-actions"><button type="button" className={tab === 'ai' ? 'active' : ''} aria-pressed={tab === 'ai'} onClick={() => setTab('ai')}>AI 解析</button><button type="button" className={tab === 'manual' ? 'active' : ''} aria-pressed={tab === 'manual'} onClick={() => setTab('manual')}>手動新增</button></div></>}
+      <nav className="food-sheet-tabs" aria-label="食物清單">{primaryTabs.map((key) => <button type="button" className={tab === key ? 'active' : ''} aria-pressed={tab === key} key={key} onClick={() => switchTab(key)}>{tabLabels[key]}</button>)}</nav><div className="v6-food-secondary-actions"><button type="button" className={tab === 'ai' ? 'active' : ''} aria-pressed={tab === 'ai'} onClick={() => switchTab('ai')}>AI 解析</button><button type="button" className={tab === 'manual' ? 'active' : ''} aria-pressed={tab === 'manual'} onClick={() => switchToManual()}>手動新增</button></div>
       <div className="food-sheet-content">
-        {normalizedQuery && <div className="food-picker-list search-results">{searchResults.length ? searchResults.map((item) => pickerButton(item.id, item.label, item.note, item.add)) : <p className="empty">找不到符合的食物。</p>}</div>}
-        {!normalizedQuery && tab === 'recent' && <div className="food-picker-list">{recent.length ? recent.map((item) => pickerButton(`recent:${item.id}`, item.line.label, `${item.line.amount} ${item.line.portionLabel ?? item.line.unit} · ${item.lastUsedDate.slice(5).replace('-', '/')}`, () => addDraft(cloneForDraft(item.line, 'recent'), 'manual', meal, `recent:${item.id}`))) : <p className="empty">最近 14 天還沒有可重用的食物。</p>}</div>}
-        {!normalizedQuery && tab === 'common' && <div className="food-picker-grid">{ingredients.map((item) => { const id = `common:${item.id}`; const count = selectedCount(id); return <button type="button" className={count ? 'selected' : ''} key={item.id} onClick={() => addDraft(ingredientMealLine(item, item.defaultAmount), 'common', meal, id)}><span><strong>{item.line.label}</strong><small>建議 {item.defaultAmount} {item.line.unit}</small></span>{count ? <b>已加 ×{count}</b> : <Plus aria-hidden="true" />}</button> })}</div>}
-        {!normalizedQuery && tab === 'templates' && <div className="food-picker-list">{templates.map((template) => pickerButton(`template:${template.id}`, template.name, `${template.description} · ${Math.round(template.kcal)} kcal`, () => addDraft(templateMealLine(template), 'template', meal, `template:${template.id}`)))}</div>}
-        {!normalizedQuery && tab === 'mine' && <div className="food-picker-list">{foods.length ? foods.map((food) => pickerButton(`mine:${food.id}`, food.name, `${food.basis === '100g' ? '每 100g' : '每份'} · ${Math.round(food.kcal)} kcal`, () => addDraft(customFoodMealLine(food), 'mine', meal, `mine:${food.id}`))) : <p className="empty">尚未建立我的食物。可到設定的食物管理新增。</p>}</div>}
-        {!normalizedQuery && tab === 'ai' && <FoodAIFlow online={online} aiEnabled={aiEnabled} metadata={metadata} onEnableAI={onEnableAI} onAIRun={onAIRun} onManual={() => setTab('manual')} onAdd={(line, candidate) => addProviderDraft(line, candidate)} />}
-        {!normalizedQuery && tab === 'manual' && <div className="manual-food-form">
-          <label className="wide">食物／餐點名稱 *<input placeholder="例如：公司午餐" value={manual.name} onChange={(event) => setManual({ ...manual, name: event.target.value })} /></label>
+        {searching && <div className="food-picker-list search-results">{searchResults.map((item) => pickerButton(item.id, item.label, item.note, item.add))}<button type="button" className="food-manual-fallback" onClick={() => switchToManual(query.trim())}><span><strong>手動新增「{query.trim()}」</strong><small>{searchResults.length ? '不是以上項目？自行輸入熱量與營養' : '找不到符合項目；改用手動輸入'}</small></span><Plus aria-hidden="true" /></button></div>}
+        {!searching && tab === 'recent' && <div className="food-picker-list">{recent.length ? recent.map((item) => pickerButton(`recent:${item.id}`, item.line.label, `${item.line.amount} ${item.line.portionLabel ?? item.line.unit} · ${item.lastUsedDate.slice(5).replace('-', '/')}`, () => addDraft(cloneForDraft(item.line, 'recent'), 'manual', meal, `recent:${item.id}`))) : <p className="empty">最近 14 天還沒有可重用的食物。</p>}</div>}
+        {!searching && tab === 'common' && <div className="food-picker-grid">{ingredients.map((item) => { const id = `common:${item.id}`; const count = selectedCount(id); return <button type="button" className={count ? 'selected' : ''} key={item.id} onClick={() => addDraft(ingredientMealLine(item, item.defaultAmount), 'common', meal, id)}><span><strong>{item.line.label}</strong><small>建議 {item.defaultAmount} {item.line.unit}</small></span>{count ? <b>已加 ×{count}</b> : <Plus aria-hidden="true" />}</button> })}</div>}
+        {!searching && tab === 'templates' && <div className="food-picker-list">{templates.map((template) => pickerButton(`template:${template.id}`, template.name, `${template.description} · ${Math.round(template.kcal)} kcal`, () => addDraft(templateMealLine(template), 'template', meal, `template:${template.id}`)))}</div>}
+        {!searching && tab === 'mine' && <div className="food-picker-list">{foods.length ? foods.map((food) => pickerButton(`mine:${food.id}`, food.name, `${food.basis === '100g' ? '每 100g' : '每份'} · ${Math.round(food.kcal)} kcal`, () => addDraft(customFoodMealLine(food), 'mine', meal, `mine:${food.id}`))) : <p className="empty">尚未建立我的食物。可到設定的食物管理新增。</p>}</div>}
+        {tab === 'ai' && <FoodAIFlow online={online} aiEnabled={aiEnabled} metadata={metadata} onEnableAI={onEnableAI} onAIRun={onAIRun} onManual={() => switchToManual()} onAdd={(line, candidate) => addProviderDraft(line, candidate)} />}
+        {tab === 'manual' && <div className="manual-food-form">
+          <label className="wide">食物／餐點名稱 *<input ref={manualNameInputRef} placeholder="例如：公司午餐" value={manual.name} onChange={(event) => setManual({ ...manual, name: event.target.value })} /></label>
           <label>熱量 kcal *<input type="number" min="0" inputMode="decimal" value={manual.kcal} onChange={(event) => setManual({ ...manual, kcal: event.target.value })} /></label>
           <label>蛋白質 g<input type="number" min="0" inputMode="decimal" value={manual.proteinG} onChange={(event) => setManual({ ...manual, proteinG: event.target.value })} /></label>
           {([['carbsG', '碳水 g'], ['fatG', '脂肪 g'], ['fiberG', '纖維 g'], ['sodiumMg', '鈉 mg']] as const).map(([key, label]) => <label key={key}>{label}（選填）<input type="number" min="0" inputMode="decimal" value={manual[key]} onChange={(event) => setManual({ ...manual, [key]: event.target.value })} /></label>)}

@@ -220,7 +220,12 @@ $targets = @(
   @{ Name = 'apple-touch-icon.png'; Size = 180; Maskable = $false },
   @{ Name = 'pwa-192x192.png'; Size = 192; Maskable = $false },
   @{ Name = 'pwa-512x512.png'; Size = 512; Maskable = $false },
-  @{ Name = 'maskable-512x512.png'; Size = 512; Maskable = $true }
+  @{ Name = 'maskable-512x512.png'; Size = 512; Maskable = $true },
+  # Versioned URLs force installed desktop PWAs and browser shortcut caches to
+  # fetch the neutral journal mark instead of keeping an older launcher icon.
+  @{ Name = 'app-icon-v2-192x192.png'; Size = 192; Maskable = $false },
+  @{ Name = 'app-icon-v2-512x512.png'; Size = 512; Maskable = $false },
+  @{ Name = 'app-icon-v2-maskable-512x512.png'; Size = 512; Maskable = $true }
 )
 
 $publicDirectory = Join-Path $RepositoryRoot 'public'

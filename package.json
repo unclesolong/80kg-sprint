@@ -4,10 +4,10 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit -p tsconfig.app.json && vite build",
+    "dev": "vite --config vite.config.ts",
+    "build": "tsc --noEmit -p tsconfig.app.json && vite build --config vite.config.ts",
     "preview": "node scripts/preview.mjs",
-    "test": "vitest run"
+    "test": "vitest run --config vite.config.ts"
   },
   "dependencies": {
     "idb": "latest",

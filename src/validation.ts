@@ -1,4 +1,5 @@
 import type { BackupPayload, ChallengeSettings, CustomFood, DailyLog, FoodTemplate, MealDetails, MealLine, WorkoutEntry } from './types'
+import { validateGrowthSnapshot } from './growth/validation'
 
 const isNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
 const isNonNegative = (value: unknown): value is number => isNumber(value) && value >= 0
@@ -74,6 +75,7 @@ export const isValidSettings = (value: unknown): value is ChallengeSettings => {
     isNumber(item.sleepMinimumHours) && isNumber(item.stepsMinimum) && isNumber(item.stepsMaximum) &&
     isNumber(item.exerciseMinutesMinimum) && isNumber(item.exerciseMinutesMaximum) &&
     (item.foodTemplates == null || (Array.isArray(item.foodTemplates) && item.foodTemplates.every(isValidFoodTemplate))) &&
+    (item.guidanceMode == null || ['tracking_only', 'legacy_targets', 'planner'].includes(String(item.guidanceMode))) &&
     (item.theme === 'dark' || item.theme === 'light') && typeof item.onboarded === 'boolean'
 }
 
@@ -98,5 +100,6 @@ export const validateBackup = (value: unknown): value is BackupPayload => {
   const item = value as Record<string, unknown>
   return item.schemaVersion === 1 && typeof item.exportedAt === 'string' &&
     isValidSettings(item.settings) && Array.isArray(item.logs) && item.logs.every(isValidLog) &&
-    Array.isArray(item.foods) && item.foods.every(isValidFood)
+    Array.isArray(item.foods) && item.foods.every(isValidFood) &&
+    (!Object.prototype.hasOwnProperty.call(item, 'growth') || validateGrowthSnapshot(item.growth))
 }

@@ -4,22 +4,23 @@ import { describe, expect, it, vi } from 'vitest'
 import { DestructiveActionSheet, matchesConfirmationPhrase } from './DestructiveActionSheet'
 
 describe('DestructiveActionSheet', () => {
-  it('renders the safe Sprint defaults and leaves permanent deletion disabled', () => {
+  it('renders accurate general tracking defaults and leaves permanent deletion disabled', () => {
     const markup = renderToStaticMarkup(createElement(DestructiveActionSheet, { onClose: vi.fn(), onConfirm: vi.fn() }))
 
     expect(markup).toContain('role="dialog"')
     expect(markup).toContain('aria-modal="true"')
-    expect(markup).toContain('清除 7 日 Sprint 資料')
-    expect(markup).toContain('DailyLog')
-    expect(markup).toContain('Sprint 設定')
+    expect(markup).toContain('清除本機追蹤與培育資料')
+    expect(markup).toContain('所有每日紀錄')
+    expect(markup).toContain('基本追蹤設定')
     expect(markup).toContain('自訂食物')
-    expect(markup).toContain('Planner')
-    expect(markup).toContain('匯出的 JSON')
+    expect(markup).toContain('培育進度與成就')
+    expect(markup).toContain('長期計畫')
+    expect(markup).toContain('已下載的備份檔')
     expect(markup).toContain('輸入「清除」後才能繼續')
     expect(markup).toMatch(/<button[^>]*v6-destructive-action[^>]*disabled=""/)
   })
 
-  it('supports custom text so non-Sprint destructive actions can reuse the sheet', () => {
+  it('supports custom text so other destructive actions can reuse the sheet', () => {
     const markup = renderToStaticMarkup(createElement(DestructiveActionSheet, {
       title: '撤回 AI 同意',
       deleteItems: ['AI 同意狀態'],

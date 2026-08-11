@@ -34,7 +34,7 @@ const baseProps = (overrides: Partial<React.ComponentProps<typeof FoodAddSheet>>
 
 const openCommonAndAddChicken = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(screen.getByRole('button', { name: '常用' }))
-  await user.click(screen.getByRole('button', { name: /^雞胸肉.*建議/ }))
+  await user.click(screen.getByRole('button', { name: /^雞肉.*建議/ }))
 }
 
 beforeEach(() => {
@@ -49,6 +49,43 @@ afterEach(() => {
 })
 
 describe('FoodAddSheet batch draft interactions', () => {
+  it('opens the real manual form without a competing search field and saves a four-digit calorie value', async () => {
+    const user = userEvent.setup()
+    const onApply = vi.fn().mockResolvedValue(undefined)
+    render(<FoodAddSheet {...baseProps({ initialTab: 'manual', onApply })} />)
+
+    const nameInput = screen.getByPlaceholderText('例如：公司午餐') as HTMLInputElement
+    await waitFor(() => expect(document.activeElement).toBe(nameInput))
+    expect(screen.queryByLabelText('搜尋食物')).toBeNull()
+
+    await user.type(nameInput, '自製雞肉捲')
+    await user.type(screen.getByLabelText('熱量 kcal *'), '1250')
+    await user.click(screen.getByRole('button', { name: '加入本次草稿' }))
+
+    expect(screen.getByRole('button', { name: '儲存 1 項' })).toBeTruthy()
+    expect(screen.getByText(/1250 kcal/)).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: '儲存 1 項' }))
+    await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1))
+
+    const nextDetails = onApply.mock.calls[0][0] as MealDetails
+    expect(nextDetails.lunch.find((line) => line.label === '自製雞肉捲')).toMatchObject({ amount: 1, kcalPerUnit: 1250 })
+  })
+
+  it('always lets a search query become a prefilled manual food', async () => {
+    const user = userEvent.setup()
+    render(<FoodAddSheet {...baseProps()} />)
+
+    const searchInput = screen.getByPlaceholderText('搜尋食物、套餐、我的食物…')
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: '關閉新增食物' })))
+    await user.type(searchInput, '自製雞肉捲')
+    await user.click(screen.getByRole('button', { name: /手動新增「自製雞肉捲」/ }))
+
+    const nameInput = screen.getByPlaceholderText('例如：公司午餐') as HTMLInputElement
+    expect(nameInput.value).toBe('自製雞肉捲')
+    expect(screen.queryByLabelText('搜尋食物')).toBeNull()
+    expect(screen.getByRole('button', { name: '手動新增' }).getAttribute('aria-pressed')).toBe('true')
+  })
+
   it('keeps the draft local through search and meal changes, then confirms before closing', async () => {
     const user = userEvent.setup()
     const onApply = vi.fn().mockResolvedValue(undefined)
@@ -64,9 +101,9 @@ describe('FoodAddSheet batch draft interactions', () => {
     expect(within(draft).getByText('午餐')).toBeTruthy()
 
     await user.selectOptions(screen.getByLabelText('加入餐次'), 'dinner')
-    await user.type(screen.getByPlaceholderText('搜尋食物、套餐、我的食物…'), '雞胸')
+    await user.type(screen.getByPlaceholderText('搜尋食物、套餐、我的食物…'), '雞肉')
     expect(screen.getByRole('button', { name: '儲存 1 項' })).toBeTruthy()
-    await user.click(screen.getByRole('button', { name: /^雞胸肉.*常用/ }))
+    await user.click(screen.getByRole('button', { name: /^雞肉.*常用/ }))
 
     expect(screen.getByRole('button', { name: '儲存 2 項' })).toBeTruthy()
     expect(within(draft).getByText('午餐')).toBeTruthy()

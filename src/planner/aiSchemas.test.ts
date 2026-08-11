@@ -8,7 +8,7 @@ import type { PlanVersion, SafetyScreen, WeeklyAggregate } from './types'
 const screen: SafetyScreen = { id: 'current', under18: false, pregnantOrBreastfeeding: false, eatingDisorderHistory: false, diabetesOrGlucoseMedication: false, kidneyDisease: false, seriousCardiovascularDisease: false, weightLossMedication: false, currentInjuryOrPain: false, faintingChestPainOrSevereDizziness: false, purgingLaxativesDiureticsOrForcedExercise: false, answeredAt: '2026-08-07' }
 const decision = evaluateSafety(plannerProfile(), screen, [], '2026-08-07')
 const local = createLocalPlanDraft(decision.bounds!, 'standard')
-const planOutput: PlanAIOutput = { schemaVersion: 1, status: 'ok', selectedTargets: { calorieTargetKcal: local.calorieTargetKcal, proteinMinG: local.proteinMinG, proteinMaxG: local.proteinMaxG, waterTargetMl: local.waterTargetMl, expectedWeeklyLossKg: local.expectedWeeklyLossKg, aerobicMinutesPerWeek: local.aerobicMinutesPerWeek, strengthDaysPerWeek: local.strengthDaysPerWeek, eveningReserveKcal: 200 }, focusTasks: ['穩定記錄'], comment: { title: '穩定執行', summary: '保持目前安全節奏。', bullets: ['一週後再檢討'], tone: 'supportive' }, assumptions: [], warnings: [] }
+const planOutput: PlanAIOutput = { schemaVersion: 1, status: 'ok', selectedTargets: { calorieTargetKcal: local.calorieTargetKcal, proteinMinG: local.proteinMinG, proteinMaxG: local.proteinMaxG, waterTargetMl: local.waterTargetMl, expectedWeeklyLossKg: local.expectedWeeklyLossKg, aerobicMinutesPerWeek: local.aerobicMinutesPerWeek, strengthDaysPerWeek: local.strengthDaysPerWeek, eveningReserveKcal: 200 }, energyPlan: { ...local.energyPlan }, focusTasks: ['穩定記錄'], comment: { title: '穩定執行', summary: '保持目前安全節奏。', bullets: ['一週後再檢討'], tone: 'supportive' }, assumptions: [], warnings: [] }
 
 describe('frontend AI schemas and domain validation', () => {
   it('accepts a complete strict plan response and applies it only inside SafetyBounds', () => {
@@ -32,6 +32,13 @@ describe('frontend AI schemas and domain validation', () => {
     expect(result.valid).toBe(false)
     expect(result.violations).toContain('unsafe_instruction')
     expect(result.draft.comment).toEqual(local.comment)
+  })
+
+  it('rejects AI changes to deterministic energy estimates', () => {
+    const result = applyPlanAIOutput(local, { ...planOutput, energyPlan: { ...planOutput.energyPlan, activeEnergyKcal: planOutput.energyPlan.activeEnergyKcal + 200, estimatedTdeeKcal: planOutput.energyPlan.estimatedTdeeKcal + 200 } }, decision)
+    expect(result.valid).toBe(false)
+    expect(result.violations).toContain('energy_plan_provenance')
+    expect(result.draft).toEqual(local)
   })
 
   it('weekly schema allows only whitelist adjustments and blocks changes when data is incomplete', () => {

@@ -1,5 +1,5 @@
 import { validatePlanVersionAgainstDecision } from './safetyEngine'
-import type { AIComment, PlannerDraft, PlanVersion, SafetyDecision, WeeklyAggregate } from './types'
+import type { AIComment, DailyEnergyPlan, PlannerDraft, PlanVersion, SafetyDecision, WeeklyAggregate } from './types'
 
 export interface PlanAIOutput {
   schemaVersion: 1
@@ -14,6 +14,7 @@ export interface PlanAIOutput {
     strengthDaysPerWeek: number
     eveningReserveKcal: number
   }
+  energyPlan: DailyEnergyPlan
   focusTasks: string[]
   comment: AIComment
   assumptions: Array<{ code: string; text: string }>
@@ -56,11 +57,14 @@ const isComment = (value: unknown): value is AIComment => record(value) && exact
   shortString(value.title, 40) && shortString(value.summary, 220) && stringArray(value.bullets, 4, 80) && oneOf(value.tone, ['supportive', 'neutral', 'caution'] as const)
 
 export const isPlanAIOutput = (value: unknown): value is PlanAIOutput => {
-  if (!record(value) || !exactKeys(value, ['schemaVersion', 'status', 'selectedTargets', 'focusTasks', 'comment', 'assumptions', 'warnings'])) return false
+  if (!record(value) || !exactKeys(value, ['schemaVersion', 'status', 'selectedTargets', 'energyPlan', 'focusTasks', 'comment', 'assumptions', 'warnings'])) return false
   const targets = value.selectedTargets
+  const energy = value.energyPlan
   if (value.schemaVersion !== 1 || !oneOf(value.status, ['ok', 'needs_more_data', 'restricted'] as const) || !record(targets) ||
     !exactKeys(targets, ['calorieTargetKcal', 'proteinMinG', 'proteinMaxG', 'waterTargetMl', 'expectedWeeklyLossKg', 'aerobicMinutesPerWeek', 'strengthDaysPerWeek', 'eveningReserveKcal']) ||
-    !Object.values(targets).every(finite) || !stringArray(value.focusTasks, 4, 60) || !isComment(value.comment)) return false
+    !Object.values(targets).every(finite) || !record(energy) || !exactKeys(energy, ['restingEnergyKcal', 'activeEnergyKcal', 'estimatedTdeeKcal', 'source', 'confidence', 'sampleCount']) ||
+    !finite(energy.restingEnergyKcal) || !finite(energy.activeEnergyKcal) || !finite(energy.estimatedTdeeKcal) || !finite(energy.sampleCount) ||
+    !oneOf(energy.source, ['wearable_logs', 'profile_wearable_average', 'mifflin'] as const) || !oneOf(energy.confidence, ['low', 'medium', 'high'] as const) || !stringArray(value.focusTasks, 4, 60) || !isComment(value.comment)) return false
   const coded = (items: unknown, textMax: number) => Array.isArray(items) && items.length <= 8 && items.every((item) => record(item) && exactKeys(item, ['code', 'text']) && shortString(item.code, 60) && shortString(item.text, textMax))
   return coded(value.assumptions, 100) && coded(value.warnings, 120)
 }
@@ -90,12 +94,17 @@ export const applyPlanAIOutput = (localDraft: PlannerDraft, output: PlanAIOutput
   const draft: PlannerDraft = {
     ...localDraft,
     ...output.selectedTargets,
+    energyPlan: { ...output.energyPlan },
     reservedTemplateIds: [...localDraft.reservedTemplateIds],
     focusTasks: [...output.focusTasks],
     comment: { ...output.comment, bullets: [...output.comment.bullets] }
   }
   const validation = validatePlanVersionAgainstDecision(draft, decision)
   const violations = [...validation.violations]
+  const localEnergy = localDraft.energyPlan
+  const outputEnergy = output.energyPlan
+  if (outputEnergy.restingEnergyKcal !== localEnergy.restingEnergyKcal || outputEnergy.activeEnergyKcal !== localEnergy.activeEnergyKcal || outputEnergy.estimatedTdeeKcal !== localEnergy.estimatedTdeeKcal || outputEnergy.source !== localEnergy.source || outputEnergy.confidence !== localEnergy.confidence || outputEnergy.sampleCount !== localEnergy.sampleCount) violations.push('energy_plan_provenance')
+  if (Math.abs(outputEnergy.restingEnergyKcal + outputEnergy.activeEnergyKcal - outputEnergy.estimatedTdeeKcal) > 100) violations.push('energy_plan_total')
   if (draft.eveningReserveKcal < 0 || draft.eveningReserveKcal > 500 || draft.eveningReserveKcal >= draft.calorieTargetKcal) violations.push('evening_reserve')
   if (unsafeInstruction([...draft.focusTasks, draft.comment.title, draft.comment.summary, ...draft.comment.bullets])) violations.push('unsafe_instruction')
   return { valid: violations.length === 0, draft: violations.length ? localDraft : draft, violations }

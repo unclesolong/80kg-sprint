@@ -1,11 +1,31 @@
 import { describe, expect, it } from 'vitest'
 import { defaultSettings, emptyLog } from './defaults'
 import { makeBackup } from './export'
+import { emptyGrowthSnapshot } from './growth/engine'
 import { validateBackup } from './validation'
 
 describe('JSON 匯入驗證', () => {
   it('接受完整備份', () => {
     expect(validateBackup(makeBackup({ ...defaultSettings, onboarded: true }, [emptyLog('2026-08-01')], []))).toBe(true)
+  })
+
+  it('舊 v1 備份仍可匯入，合法 GrowthSnapshot 可選擇性加入', () => {
+    const legacy = makeBackup(defaultSettings, [], [])
+    const growth = emptyGrowthSnapshot('backup-cycle', 'birth-mark-4')
+
+    expect(Object.prototype.hasOwnProperty.call(legacy, 'growth')).toBe(false)
+    expect(validateBackup(legacy)).toBe(true)
+    expect(validateBackup(makeBackup(defaultSettings, [], [], growth))).toBe(true)
+  })
+
+  it('growth 存在時採 fail-closed 驗證', () => {
+    const base = makeBackup(defaultSettings, [], [])
+    const growth = emptyGrowthSnapshot()
+
+    expect(validateBackup({ ...base, growth: null })).toBe(false)
+    expect(validateBackup({ ...base, growth: undefined })).toBe(false)
+    expect(validateBackup({ ...base, growth: { ...growth, companion: { ...growth.companion, xp: -1 } } })).toBe(false)
+    expect(validateBackup({ ...base, growth: { ...growth, missions: [{ id: 'malformed' }] } })).toBe(false)
   })
 
   it('拒絕錯誤 schema 與日誌欄位', () => {

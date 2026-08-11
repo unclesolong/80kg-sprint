@@ -21,10 +21,20 @@ const selectedTargetsZodSchema = z.strictObject({
   eveningReserveKcal: z.number(),
 })
 
+const dailyEnergyPlanZodSchema = z.strictObject({
+  restingEnergyKcal: z.number().min(500).max(5000),
+  activeEnergyKcal: z.number().min(0).max(3000),
+  estimatedTdeeKcal: z.number().min(800).max(7000),
+  source: z.enum(['wearable_logs', 'profile_wearable_average', 'mifflin']),
+  confidence: z.enum(['low', 'medium', 'high']),
+  sampleCount: z.number().int().min(0).max(30),
+})
+
 export const planAIOutputZodSchema: z.ZodType<PlanAIOutput> = z.strictObject({
   schemaVersion: z.literal(1),
   status: z.enum(['ok', 'needs_more_data', 'restricted']),
   selectedTargets: selectedTargetsZodSchema,
+  energyPlan: dailyEnergyPlanZodSchema,
   focusTasks: z.array(z.string().max(60)).max(4),
   comment: aiCommentZodSchema,
   assumptions: z.array(z.strictObject({
@@ -99,6 +109,7 @@ export const planAIOutputSchema: JsonSchema = {
     'schemaVersion',
     'status',
     'selectedTargets',
+    'energyPlan',
     'focusTasks',
     'comment',
     'assumptions',
@@ -129,6 +140,19 @@ export const planAIOutputSchema: JsonSchema = {
         aerobicMinutesPerWeek: { type: 'number' },
         strengthDaysPerWeek: { type: 'number' },
         eveningReserveKcal: { type: 'number' },
+      },
+    },
+    energyPlan: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['restingEnergyKcal', 'activeEnergyKcal', 'estimatedTdeeKcal', 'source', 'confidence', 'sampleCount'],
+      properties: {
+        restingEnergyKcal: { type: 'number', minimum: 500, maximum: 5000 },
+        activeEnergyKcal: { type: 'number', minimum: 0, maximum: 3000 },
+        estimatedTdeeKcal: { type: 'number', minimum: 800, maximum: 7000 },
+        source: { type: 'string', enum: ['wearable_logs', 'profile_wearable_average', 'mifflin'] },
+        confidence: { type: 'string', enum: ['low', 'medium', 'high'] },
+        sampleCount: { type: 'integer', minimum: 0, maximum: 30 },
       },
     },
     focusTasks: { type: 'array', maxItems: 4, items: { type: 'string', maxLength: 60 } },

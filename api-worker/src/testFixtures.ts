@@ -54,6 +54,14 @@ export const planRequest: PlanGenerateRequest = {
       strengthDaysPerWeek: 2,
       eveningReserveKcal: 170,
     },
+    energyPlan: {
+      restingEnergyKcal: 1_750,
+      activeEnergyKcal: 450,
+      estimatedTdeeKcal: 2_200,
+      source: 'profile_wearable_average',
+      confidence: 'medium',
+      sampleCount: 14,
+    },
     focusTasks: ['穩定紀錄三餐', '白開水分次達標'],
   },
 }
@@ -62,6 +70,7 @@ export const planOutput: PlanAIOutput = {
   schemaVersion: 1,
   status: 'ok',
   selectedTargets: { ...planRequest.localRecommendation.selectedTargets },
+  energyPlan: { ...planRequest.localRecommendation.energyPlan },
   focusTasks: ['維持穩定紀錄', '優先補足飲水'],
   comment: {
     title: '先維持這份安全節奏',

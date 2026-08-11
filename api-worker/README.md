@@ -1,4 +1,4 @@
-# 80KG Sprint API Worker
+# 減脂追蹤 API Worker
 
 Phase 3/4 的 Cloudflare Worker 參考實作。這個目錄和 Vite 前端分開；OpenAI、USDA 等秘密只存在 Worker 環境，不會進入 `VITE_*` 或瀏覽器 bundle。
 
@@ -9,12 +9,22 @@ Phase 3/4 的 Cloudflare Worker 參考實作。這個目錄和 Vite 前端分開
 | Method | Path | 說明 | AI 同意 header |
 | --- | --- | --- | --- |
 | `GET` | `/v1/health` | 僅回傳服務與 provider 是否已設定，不洩漏值 | 不需要 |
-| `POST` | `/v1/plan/generate` | 以本地安全計畫與 SafetyBounds 產生計畫草稿 | `X-AI-Consent: granted` |
+| `POST` | `/v1/plan/generate` | 以問卷、本地能量分析與 SafetyBounds 產生計畫草稿 | `X-AI-Consent: granted` |
 | `POST` | `/v1/review/weekly` | 只分析每週 aggregate，產生可確認的調整草稿 | `X-AI-Consent: granted` |
 | `POST` | `/v1/food/parse` | 只拆解名稱、份量、生熟與確認問題；schema 沒有營養欄位 | `X-AI-Consent: granted` |
 | `POST` | `/v1/food/search` | 依 deterministic ranking 搜尋 Local／BLS／USDA／Open Food Facts | `X-AI-Consent: granted` |
 
 AI endpoints 只回傳草稿。Worker 不知道 IndexedDB，也沒有寫入 `DailyLog`、`MealLine` 或 `PlanVersion` 的能力；前端仍須通過本地 Safety Engine、顯示 Draft Form，並等待使用者按下「套用並儲存」。
+
+### 計畫能量分析契約
+
+前端會先依下列順序建立 `localRecommendation.energyPlan`：
+
+1. 最近 7–14 天同時具有靜止與活動能量的每日紀錄。
+2. 使用者在問卷填寫的穿戴裝置平均值與涵蓋天數。
+3. Mifflin-St Jeor BMR 與生活／運動活動係數估算。
+
+計畫草稿與 `PlanVersion` 會保存 `restingEnergyKcal`、`activeEnergyKcal`、`estimatedTdeeKcal`、來源、信心度與樣本天數，供首頁顯示「攝取、活動、靜止、TDEE」表格。AI 必須原樣複製這份 deterministic 分析，只能在安全邊界內調整攝取與行為草稿；若修改數字或來源，Worker 與前端都會拒絕回應並保留本地草稿。
 
 ## Response contract
 

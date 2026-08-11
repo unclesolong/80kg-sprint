@@ -46,6 +46,7 @@ export const settingsFromOnboardingDraft = (
     targetWeightKg: Number(draft.targetWeightKg),
     startDate: draft.startDate,
     finalWeighInDate: draft.finalWeighInDate,
+    guidanceMode: 'tracking_only',
     onboarded: true
   }
 }
@@ -113,7 +114,7 @@ export function Onboarding({ initial, initialDraft, onComplete, onImportBackup }
       <button className="primary onboarding-submit" type="submit" disabled={saving || importing}>{saving ? '儲存中…' : '儲存基本設定並開始'}</button>
       {onImportBackup && <>
         <input ref={importInput} className="onboarding-import-input" hidden type="file" accept=".json,application/json" onChange={(event) => { void importBackup(event) }} />
-        <button className="onboarding-import" type="button" disabled={saving || importing} onClick={() => importInput.current?.click()}>{importing ? '匯入備份中…' : '匯入既有 JSON 備份'}</button>
+        <button className="onboarding-import" type="button" disabled={saving || importing} onClick={() => importInput.current?.click()}>{importing ? '匯入備份中…' : '匯入追蹤與培育備份'}</button>
       </>}
     </form>
     <p className="privacy-line">資料預設只儲存在此裝置。</p>

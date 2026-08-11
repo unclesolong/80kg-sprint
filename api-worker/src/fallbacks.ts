@@ -13,6 +13,7 @@ export const buildPlanFallback = (request: PlanGenerateRequest): PlanAIOutput =>
   schemaVersion: 1,
   status: request.safety.status === 'needs_confirmation' ? 'needs_more_data' : 'ok',
   selectedTargets: { ...request.localRecommendation.selectedTargets },
+  energyPlan: { ...request.localRecommendation.energyPlan },
   focusTasks: [...request.localRecommendation.focusTasks].slice(0, 4),
   comment: {
     title: '已保留本地安全計畫',

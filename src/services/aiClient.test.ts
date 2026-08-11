@@ -18,6 +18,7 @@ const bounds = {
 const decision: SafetyDecision = { status: 'approved', reasonCodes: [], userMessages: [], limitations: [], bounds }
 const draft: PlannerDraft = {
   goalDate: '2026-11-01', calorieTargetKcal: 1800, proteinMinG: 120, proteinMaxG: 150, waterTargetMl: 2400,
+  energyPlan: { restingEnergyKcal: 1750, activeEnergyKcal: 450, estimatedTdeeKcal: 2200, source: 'profile_wearable_average', confidence: 'medium', sampleCount: 14 },
   aerobicMinutesPerWeek: 120, strengthDaysPerWeek: 2, expectedWeeklyLossKg: 0.4, eveningReserveKcal: 170,
   reservedTemplateIds: [], focusTasks: ['記錄三餐'], comment: { title: '本地計畫', summary: '安全摘要', bullets: [], tone: 'supportive' }
 }
@@ -30,6 +31,7 @@ const validFoodParse = {
 const validPlanOutput: PlanAIOutput = {
   schemaVersion: 1, status: 'ok',
   selectedTargets: { calorieTargetKcal: 1800, proteinMinG: 120, proteinMaxG: 150, waterTargetMl: 2400, expectedWeeklyLossKg: 0.4, aerobicMinutesPerWeek: 120, strengthDaysPerWeek: 2, eveningReserveKcal: 170 },
+  energyPlan: { ...draft.energyPlan },
   focusTasks: ['記錄三餐'], comment: { title: '穩定執行', summary: '先維持安全且可持續的節奏。', bullets: [], tone: 'supportive' }, assumptions: [], warnings: []
 }
 

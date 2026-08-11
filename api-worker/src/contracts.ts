@@ -32,6 +32,15 @@ export interface SelectedTargets {
   eveningReserveKcal: number
 }
 
+export interface DailyEnergyPlan {
+  restingEnergyKcal: number
+  activeEnergyKcal: number
+  estimatedTdeeKcal: number
+  source: 'wearable_logs' | 'profile_wearable_average' | 'mifflin'
+  confidence: 'low' | 'medium' | 'high'
+  sampleCount: number
+}
+
 export interface AIComment {
   title: string
   summary: string
@@ -43,6 +52,7 @@ export interface PlanAIOutput {
   schemaVersion: 1
   status: 'ok' | 'needs_more_data' | 'restricted'
   selectedTargets: SelectedTargets
+  energyPlan: DailyEnergyPlan
   focusTasks: string[]
   comment: AIComment
   assumptions: Array<{ code: string; text: string }>
@@ -114,6 +124,7 @@ export interface PlanGenerateRequest {
   safety: SafetyRequestSnapshot
   localRecommendation: {
     selectedTargets: SelectedTargets
+    energyPlan: DailyEnergyPlan
     focusTasks: string[]
   }
 }

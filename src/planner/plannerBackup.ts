@@ -37,11 +37,11 @@ const comment = (value: unknown) => record(value) && exact(value, ['title', 'sum
 
 const profile = (value: unknown) => record(value) && exact(value,
   ['id', 'age', 'calculationSex', 'heightCm', 'currentWeightKg', 'goalWeightKg', 'workActivity', 'exerciseSessionsPerWeek', 'wearable', 'foodRestrictions', 'goalPace', 'locale', 'timezone', 'createdAt', 'updatedAt'],
-  ['averageSteps', 'exerciseMinutesPerWeek', 'averageRestingEnergyKcal', 'averageActiveEnergyKcal', 'dietaryPattern']) &&
+  ['averageSteps', 'exerciseMinutesPerWeek', 'averageRestingEnergyKcal', 'averageActiveEnergyKcal', 'wearableObservationDays', 'dietaryPattern']) &&
   value.id === 'current' && finite(value.age) && enumeration(value.calculationSex, ['male', 'female']) && finite(value.heightCm) && finite(value.currentWeightKg) && finite(value.goalWeightKg) &&
   enumeration(value.workActivity, ['sedentary', 'mixed', 'standing', 'physical']) && finite(value.exerciseSessionsPerWeek) && enumeration(value.wearable, ['apple_watch', 'other', 'none']) && strings(value.foodRestrictions, 100) &&
   enumeration(value.goalPace, ['gentle', 'standard', 'aggressive']) && value.locale === 'zh-TW' && text(value.timezone) && text(value.createdAt) && text(value.updatedAt) &&
-  optionalNumber(value.averageSteps) && optionalNumber(value.exerciseMinutesPerWeek) && optionalNumber(value.averageRestingEnergyKcal) && optionalNumber(value.averageActiveEnergyKcal) && (value.dietaryPattern === undefined || enumeration(value.dietaryPattern, ['omnivore', 'vegetarian', 'vegan', 'other']))
+  optionalNumber(value.averageSteps) && optionalNumber(value.exerciseMinutesPerWeek) && optionalNumber(value.averageRestingEnergyKcal) && optionalNumber(value.averageActiveEnergyKcal) && optionalNumber(value.wearableObservationDays) && (value.dietaryPattern === undefined || enumeration(value.dietaryPattern, ['omnivore', 'vegetarian', 'vegan', 'other']))
 
 const safetyScreen = (value: unknown) => {
   const booleanKeys = ['under18', 'pregnantOrBreastfeeding', 'eatingDisorderHistory', 'diabetesOrGlucoseMedication', 'kidneyDisease', 'seriousCardiovascularDisease', 'weightLossMedication', 'currentInjuryOrPain', 'faintingChestPainOrSevereDizziness', 'purgingLaxativesDiureticsOrForcedExercise'] as const
@@ -52,11 +52,14 @@ const plan = (value: unknown) => record(value) && exact(value, ['id', 'name', 's
   text(value.id) && text(value.name) && enumeration(value.status, ['draft', 'active', 'paused', 'completed', 'restricted']) && text(value.startDate) && finite(value.goalWeightKg) && text(value.createdAt) && enumeration(value.source, ['manual', 'ai_assisted', 'legacy']) && safetyDecision(value.safetyDecisionSnapshot)
 
 const versionKeys = ['id', 'planId', 'effectiveFrom', 'goalDate', 'calorieTargetKcal', 'calorieRangeMinKcal', 'calorieRangeMaxKcal', 'proteinMinG', 'proteinMaxG', 'waterTargetMl', 'sleepTargetMinHours', 'aerobicMinutesPerWeek', 'strengthDaysPerWeek', 'expectedWeeklyLossKg', 'eveningReserveKcal', 'reservedTemplateIds', 'focusTasks', 'comment', 'createdAt', 'createdBy'] as const
-const planVersion = (value: unknown) => record(value) && exact(value, versionKeys) &&
+const energyPlan = (value: unknown) => record(value) && exact(value, ['restingEnergyKcal', 'activeEnergyKcal', 'estimatedTdeeKcal', 'source', 'confidence', 'sampleCount']) &&
+  finite(value.restingEnergyKcal) && finite(value.activeEnergyKcal) && finite(value.estimatedTdeeKcal) && finite(value.sampleCount) &&
+  enumeration(value.source, ['wearable_logs', 'profile_wearable_average', 'mifflin']) && enumeration(value.confidence, ['low', 'medium', 'high'])
+const planVersion = (value: unknown) => record(value) && exact(value, versionKeys, ['energyPlan']) &&
   ['id', 'planId', 'effectiveFrom', 'goalDate', 'createdAt'].every((key) => text(value[key])) &&
   ['calorieTargetKcal', 'calorieRangeMinKcal', 'calorieRangeMaxKcal', 'proteinMinG', 'proteinMaxG', 'waterTargetMl', 'sleepTargetMinHours', 'aerobicMinutesPerWeek', 'strengthDaysPerWeek', 'expectedWeeklyLossKg', 'eveningReserveKcal'].every((key) => finite(value[key])) &&
-  strings(value.reservedTemplateIds) && strings(value.focusTasks) && comment(value.comment) && enumeration(value.createdBy, ['manual', 'ai_assisted'])
-const partialPlanVersion = (value: unknown) => record(value) && Object.keys(value).every((key) => versionKeys.includes(key as typeof versionKeys[number])) &&
+  strings(value.reservedTemplateIds) && strings(value.focusTasks) && comment(value.comment) && enumeration(value.createdBy, ['manual', 'ai_assisted']) && (value.energyPlan === undefined || energyPlan(value.energyPlan))
+const partialPlanVersion = (value: unknown) => record(value) && Object.keys(value).every((key) => key === 'energyPlan' || versionKeys.includes(key as typeof versionKeys[number])) &&
   (value.id === undefined || planVersion({ ...Object.fromEntries(versionKeys.map((key) => [key, ({ id: '', planId: '', effectiveFrom: '', goalDate: '', calorieTargetKcal: 0, calorieRangeMinKcal: 0, calorieRangeMaxKcal: 0, proteinMinG: 0, proteinMaxG: 0, waterTargetMl: 0, sleepTargetMinHours: 0, aerobicMinutesPerWeek: 0, strengthDaysPerWeek: 0, expectedWeeklyLossKg: 0, eveningReserveKcal: 0, reservedTemplateIds: [], focusTasks: [], comment: { title: '', summary: '', bullets: [], tone: 'neutral' }, createdAt: '', createdBy: 'manual' } as UnknownRecord)[key]])), ...value }))
 
 const aggregate = (value: unknown) => {

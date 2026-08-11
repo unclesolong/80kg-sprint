@@ -101,6 +101,20 @@
 .plan-detail-hero strong { margin-top: 8px; font-size: 2rem; }
 .plan-detail-hero strong small { color: var(--muted); font-size: .42em; }
 .plan-detail-hero p { margin: 7px 0 0; color: var(--muted); font-size: .74rem; }
+.plan-draft-summary table,
+.plan-energy-card table { width: 100%; margin-top: 10px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.plan-draft-summary th,
+.plan-draft-summary td,
+.plan-energy-card th,
+.plan-energy-card td { padding: 9px 8px; border-top: 1px solid var(--line); text-align: left; }
+.plan-draft-summary td,
+.plan-energy-card td { font-weight: 750; text-align: right; }
+.plan-energy-card { margin-top: 10px; padding: 16px; }
+.plan-energy-card > div:first-child span { color: var(--green); font-size: .68rem; font-weight: 800; letter-spacing: .08em; }
+.plan-energy-card h2 { margin: 4px 0 0; font-size: 1rem; }
+.plan-energy-table-scroll { overflow-x: auto; }
+.plan-energy-card table { min-width: 420px; }
+.plan-energy-card p { margin: 10px 0 0; color: var(--muted); font-size: .72rem; line-height: 1.5; }
 .plan-detail-grid, .weekly-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-top: 10px; }
 .plan-detail-grid article, .weekly-metrics article { min-width: 0; padding: 14px; }
 .plan-detail-grid svg, .weekly-metrics svg { width: 19px; color: var(--green); }

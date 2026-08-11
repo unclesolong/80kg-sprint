@@ -1,4 +1,4 @@
-import type { PlannerDraft, PlanVersion, SafetyBounds, SafetyDecision, UserProfile, WeeklyAggregate } from '../planner/types'
+import type { DailyEnergyPlan, PlannerDraft, PlanVersion, SafetyBounds, SafetyDecision, UserProfile, WeeklyAggregate } from '../planner/types'
 import { parseFoodParseOutput, parsePlanAIOutput, parseWeeklyReviewAIOutput, validatePlanAIOutputAgainstBounds, validateWeeklyReviewAIOutputAgainstBounds, type FoodParseOutput, type PlanAIOutput, type WeeklyReviewAIOutput } from './aiSchemas'
 import { createSafeHttpClient, type HttpClientOptions } from './httpClient'
 import { safeServiceError, type ServiceResult } from './serviceTypes'
@@ -53,7 +53,7 @@ export interface PlanAIRequest {
   }
   goalDate: string | null
   safety: AISafetyRequestSnapshot
-  localRecommendation: { selectedTargets: AISelectedTargets; focusTasks: string[] }
+  localRecommendation: { selectedTargets: AISelectedTargets; energyPlan: DailyEnergyPlan; focusTasks: string[] }
 }
 
 export interface WeeklyReviewAIRequest {
@@ -153,7 +153,7 @@ export const buildPlanAIRequest = (
   },
   goalDate: draft.goalDate || null,
   safety: copySafety(decision, { ...safetyDetails, painLevel: safetyDetails.painLevel ?? summaries.recovery?.averagePain }),
-  localRecommendation: { selectedTargets: targetsFromDraft(draft), focusTasks: shortStrings(draft.focusTasks, 4, 60) }
+  localRecommendation: { selectedTargets: targetsFromDraft(draft), energyPlan: { ...draft.energyPlan }, focusTasks: shortStrings(draft.focusTasks, 4, 60) }
 })
 
 const allowlistPlanRequest = (request: PlanAIRequest): PlanAIRequest => ({
@@ -178,6 +178,7 @@ const allowlistPlanRequest = (request: PlanAIRequest): PlanAIRequest => ({
   }),
   localRecommendation: {
     selectedTargets: { ...request.localRecommendation.selectedTargets },
+    energyPlan: { ...request.localRecommendation.energyPlan },
     focusTasks: shortStrings(request.localRecommendation.focusTasks, 4, 60)
   }
 })
@@ -260,7 +261,7 @@ export const createAIClient = (options: AIClientOptions = {}): AIClient => {
       if (!response.ok) return { ...response, fallback }
       const schema = parsePlanAIOutput(response.data)
       if (!schema.valid) return { ok: false, error: safeServiceError('invalid_response'), fallback }
-      const domain = validatePlanAIOutputAgainstBounds(schema.value, safeRequest.safety.bounds)
+      const domain = validatePlanAIOutputAgainstBounds(schema.value, safeRequest.safety.bounds, safeRequest.localRecommendation.energyPlan)
       if (!domain.valid) return { ok: false, error: safeServiceError('invalid_response'), fallback }
       if (response.meta?.source === 'fallback') return { ok: false, error: safeServiceError('unavailable'), fallback: fallback ?? domain.value }
       return { ok: true, data: domain.value, fallback: false, meta: response.meta }

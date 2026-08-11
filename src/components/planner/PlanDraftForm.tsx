@@ -2,8 +2,20 @@ import type { PlannerDraft, SafetyBounds } from '../../planner/types'
 
 export function PlanDraftForm({ draft, bounds, onChange }: { draft: PlannerDraft; bounds: SafetyBounds; onChange: (draft: PlannerDraft) => void }) {
   const set = <K extends keyof PlannerDraft>(key: K, value: PlannerDraft[K]) => onChange({ ...draft, [key]: value })
+  const sourceLabel = { wearable_logs: '最近裝置紀錄', profile_wearable_average: '問卷填寫的裝置平均', mifflin: '基本資料公式估算' }[draft.energyPlan.source]
+  const confidenceLabel = { low: '低', medium: '中', high: '高' }[draft.energyPlan.confidence]
   return <div className="plan-draft-form">
     <div className="plan-draft-summary"><span>建議完成期間</span><strong>{bounds.earliestGoalDate} 至 {bounds.latestSuggestedGoalDate}</strong><small>依目前體重與每週安全速度估算，不是保證日期。</small></div>
+    <div className="plan-draft-summary" aria-label="每日熱量分析表">
+      <span>每日熱量分析</span>
+      <table><thead><tr><th scope="col">項目</th><th scope="col">kcal／日</th></tr></thead><tbody>
+        <tr><th scope="row">攝取熱量目標</th><td>{draft.calorieTargetKcal}</td></tr>
+        <tr><th scope="row">活動能量參考</th><td>{draft.energyPlan.activeEnergyKcal}</td></tr>
+        <tr><th scope="row">靜止能量估計</th><td>{draft.energyPlan.restingEnergyKcal}</td></tr>
+        <tr><th scope="row">總消耗估計（TDEE）</th><td>{draft.energyPlan.estimatedTdeeKcal}</td></tr>
+      </tbody></table>
+      <small>{sourceLabel} · 信心度 {confidenceLabel}{draft.energyPlan.sampleCount > 0 ? ` · ${draft.energyPlan.sampleCount} 天資料` : ''}。活動與靜止能量是規劃參考，不代表每日必須追到的數字。</small>
+    </div>
     <div className="planner-form-grid">
       <label>計畫目標日<input type="date" min={bounds.earliestGoalDate} max={bounds.latestSuggestedGoalDate} value={draft.goalDate} onChange={(event) => set('goalDate', event.target.value)} /></label>
       <label>每日熱量目標<span className="planner-input-unit"><input type="number" step="50" min={bounds.dailyCalories.min} max={bounds.dailyCalories.max} value={draft.calorieTargetKcal} onChange={(event) => set('calorieTargetKcal', Number(event.target.value))} /><small>kcal</small></span></label>

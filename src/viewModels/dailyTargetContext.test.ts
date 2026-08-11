@@ -27,12 +27,13 @@ const version: PlanVersion = {
 }
 
 describe('daily target context', () => {
-  it('uses the Planner min, center and max without changing Sprint activity targets', () => {
+  it('uses Planner nutrition targets without inventing energy guidance for a legacy version', () => {
     const result = buildDailyTargetContext('2026-08-10', defaultSettings, version)
     expect(result.calories).toEqual({ min: 1_650, center: 1_700, max: 1_750 })
     expect(result.protein).toEqual({ min: 130, max: 155 })
     expect(result.waterTargetMl).toBe(2_600)
     expect(result.sleepMinimumHours).toBe(7.5)
+    expect(result.guidance.activity).toBe(false)
     expect(result.activity).toEqual({
       minimum: defaultSettings.activeKcalMinimum,
       target: defaultSettings.activeKcalTarget,
@@ -40,13 +41,41 @@ describe('daily target context', () => {
     })
   })
 
-  it('uses the midpoint as the legacy Sprint calorie center', () => {
-    const settings = { ...defaultSettings, intakeKcalMinimum: 1_700, intakeKcalMaximum: 1_850 }
+  it('uses the midpoint for an existing legacy target range', () => {
+    const settings = { ...defaultSettings, guidanceMode: 'legacy_targets' as const, intakeKcalMinimum: 1_700, intakeKcalMaximum: 1_850 }
     expect(buildDailyTargetContext('2026-08-08', settings).calories).toEqual({
       min: 1_700,
       center: 1_775,
       max: 1_850
     })
+  })
+
+  it('keeps compatibility numbers hidden in tracking-only mode', () => {
+    const result = buildDailyTargetContext('2026-08-08', {
+      ...defaultSettings,
+      activeKcalMinimum: 600,
+      intakeKcalMinimum: 1_700,
+      intakeKcalMaximum: 1_850
+    })
+    expect(result.mode).toBe('tracking_only')
+    expect(Object.values(result.guidance).every((enabled) => !enabled)).toBe(true)
+  })
+
+  it('uses an explicit Planner energy plan without inventing an activity range', () => {
+    const withEnergy: PlanVersion = {
+      ...version,
+      energyPlan: {
+        restingEnergyKcal: 1_750,
+        activeEnergyKcal: 480,
+        estimatedTdeeKcal: 2_230,
+        source: 'mifflin',
+        confidence: 'low',
+        sampleCount: 0
+      }
+    }
+    const result = buildDailyTargetContext('2026-08-10', defaultSettings, withEnergy)
+    expect(result.guidance.activity).toBe(true)
+    expect(result.activity).toEqual({ minimum: 480, target: 480, maximum: 480 })
   })
 
   it('adapts legacy settings immutably for existing selectors', () => {

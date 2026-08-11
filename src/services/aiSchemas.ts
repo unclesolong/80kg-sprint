@@ -1,4 +1,4 @@
-import type { PlanVersion, SafetyBounds } from '../planner/types'
+import type { DailyEnergyPlan, PlanVersion, SafetyBounds } from '../planner/types'
 import { array, boolean, enumeration, exactKeys, literal, nullable, number, numericEnumeration, record, text, validate, type ValidationResult } from './strictValidation'
 
 export interface AICommentOutput {
@@ -21,6 +21,7 @@ export interface PlanAIOutput {
     strengthDaysPerWeek: number
     eveningReserveKcal: number
   }
+  energyPlan: DailyEnergyPlan
   focusTasks: string[]
   comment: AICommentOutput
   assumptions: Array<{ code: string; text: string }>
@@ -75,9 +76,11 @@ const parseCodedText = (value: unknown, path: string, max: number) => {
 
 export const parsePlanAIOutput = (value: unknown): ValidationResult<PlanAIOutput> => validate(() => {
   const data = record(value, 'response')
-  exactKeys(data, ['schemaVersion', 'status', 'selectedTargets', 'focusTasks', 'comment', 'assumptions', 'warnings'])
+  exactKeys(data, ['schemaVersion', 'status', 'selectedTargets', 'energyPlan', 'focusTasks', 'comment', 'assumptions', 'warnings'])
   const targets = record(data.selectedTargets, 'response.selectedTargets')
+  const energy = record(data.energyPlan, 'response.energyPlan')
   exactKeys(targets, ['calorieTargetKcal', 'proteinMinG', 'proteinMaxG', 'waterTargetMl', 'expectedWeeklyLossKg', 'aerobicMinutesPerWeek', 'strengthDaysPerWeek', 'eveningReserveKcal'], [], 'response.selectedTargets')
+  exactKeys(energy, ['restingEnergyKcal', 'activeEnergyKcal', 'estimatedTdeeKcal', 'source', 'confidence', 'sampleCount'], [], 'response.energyPlan')
   return {
     schemaVersion: literal(data.schemaVersion, 1, 'response.schemaVersion'),
     status: enumeration(data.status, ['ok', 'needs_more_data', 'restricted'] as const, 'response.status'),
@@ -90,6 +93,14 @@ export const parsePlanAIOutput = (value: unknown): ValidationResult<PlanAIOutput
       aerobicMinutesPerWeek: number(targets.aerobicMinutesPerWeek, 'response.selectedTargets.aerobicMinutesPerWeek'),
       strengthDaysPerWeek: number(targets.strengthDaysPerWeek, 'response.selectedTargets.strengthDaysPerWeek'),
       eveningReserveKcal: number(targets.eveningReserveKcal, 'response.selectedTargets.eveningReserveKcal')
+    },
+    energyPlan: {
+      restingEnergyKcal: number(energy.restingEnergyKcal, 'response.energyPlan.restingEnergyKcal', { min: 500, max: 5000 }),
+      activeEnergyKcal: number(energy.activeEnergyKcal, 'response.energyPlan.activeEnergyKcal', { min: 0, max: 3000 }),
+      estimatedTdeeKcal: number(energy.estimatedTdeeKcal, 'response.energyPlan.estimatedTdeeKcal', { min: 800, max: 7000 }),
+      source: enumeration(energy.source, ['wearable_logs', 'profile_wearable_average', 'mifflin'] as const, 'response.energyPlan.source'),
+      confidence: enumeration(energy.confidence, ['low', 'medium', 'high'] as const, 'response.energyPlan.confidence'),
+      sampleCount: number(energy.sampleCount, 'response.energyPlan.sampleCount', { min: 0, max: 30 })
     },
     focusTasks: array(data.focusTasks, 'response.focusTasks', 4, (item, path) => text(item, path, 60)),
     comment: parseComment(data.comment, 'response.comment'),
@@ -144,8 +155,9 @@ export const parseFoodParseOutput = (value: unknown): ValidationResult<FoodParse
 })
 
 const inRange = (value: number, range: { min: number; max: number }) => value >= range.min && value <= range.max
+const sameEnergyPlan = (left: DailyEnergyPlan, right: DailyEnergyPlan) => left.restingEnergyKcal === right.restingEnergyKcal && left.activeEnergyKcal === right.activeEnergyKcal && left.estimatedTdeeKcal === right.estimatedTdeeKcal && left.source === right.source && left.confidence === right.confidence && left.sampleCount === right.sampleCount
 
-export const validatePlanAIOutputAgainstBounds = (output: PlanAIOutput, bounds: SafetyBounds): ValidationResult<PlanAIOutput> => {
+export const validatePlanAIOutputAgainstBounds = (output: PlanAIOutput, bounds: SafetyBounds, expectedEnergy?: DailyEnergyPlan): ValidationResult<PlanAIOutput> => {
   const target = output.selectedTargets
   const violations = [
     !inRange(target.calorieTargetKcal, bounds.dailyCalories) && 'selectedTargets.calorieTargetKcal',
@@ -155,7 +167,9 @@ export const validatePlanAIOutputAgainstBounds = (output: PlanAIOutput, bounds: 
     !inRange(target.expectedWeeklyLossKg, bounds.weeklyLossKg) && 'selectedTargets.expectedWeeklyLossKg',
     !inRange(target.aerobicMinutesPerWeek, bounds.aerobicMinutesPerWeek) && 'selectedTargets.aerobicMinutesPerWeek',
     !inRange(target.strengthDaysPerWeek, bounds.strengthDaysPerWeek) && 'selectedTargets.strengthDaysPerWeek',
-    (target.eveningReserveKcal < 0 || target.eveningReserveKcal >= target.calorieTargetKcal) && 'selectedTargets.eveningReserveKcal'
+    (target.eveningReserveKcal < 0 || target.eveningReserveKcal >= target.calorieTargetKcal) && 'selectedTargets.eveningReserveKcal',
+    Math.abs(output.energyPlan.restingEnergyKcal + output.energyPlan.activeEnergyKcal - output.energyPlan.estimatedTdeeKcal) > 100 && 'energyPlan.estimatedTdeeKcal',
+    expectedEnergy && !sameEnergyPlan(output.energyPlan, expectedEnergy) && 'energyPlan.provenance'
   ].filter(Boolean) as string[]
   return violations.length ? { valid: false, issues: violations.map((field) => `${field}: outside safety bounds`) } : { valid: true, value: output }
 }

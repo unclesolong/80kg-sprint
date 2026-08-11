@@ -33,7 +33,7 @@ describe('Onboarding', () => {
     expect(html).toContain('開始追蹤日期')
     expect(html).toContain('階段檢視日期')
     expect(html).toContain('儲存基本設定並開始')
-    expect(html).toContain('匯入既有 JSON 備份')
+    expect(html).toContain('匯入追蹤與培育備份')
     expect(html).toContain('type="file"')
     expect(html).toContain('accept=".json,application/json"')
     expect(html).toContain('資料預設只儲存在此裝置。')
@@ -56,7 +56,7 @@ describe('Onboarding', () => {
       onboarded: true
     })
     expect(result).not.toBe(defaultSettings)
-    expect(defaultSettings.targetWeightKg).toBe(80)
+    expect(defaultSettings.targetWeightKg).toBe(0)
   })
 
   it('rejects incomplete or non-forward date ranges', () => {

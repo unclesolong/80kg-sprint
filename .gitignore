@@ -2,6 +2,7 @@ node_modules/
 dist/
 work/
 outputs/
+.codex-preview/
 .DS_Store
 *.local
 *.log

@@ -40,7 +40,28 @@ export default defineConfig(({ command }) => {
           clientsClaim: false,
           skipWaiting: false,
           navigateFallback: 'index.html',
-          globPatterns: ['**/*.{js,css,html,ico,png,webp,svg,webmanifest}']
+          globPatterns: ['**/*.{js,css,html,ico,png,webp,svg,webmanifest}'],
+          additionalManifestEntries: [
+            { url: 'art/growth/motion/stage-02/luminous-stage-02-idle-primary-50fps-v1.mp4', revision: 'v1' },
+            { url: 'art/growth/motion/stage-03/luminous-stage-03-idle-primary-50fps-v1.mp4', revision: 'v1' }
+          ],
+          // Authored motion atlases are loaded only for the current stage. The
+          // still posters remain precached, while recently viewed motion stays
+          // available offline without decoding all twelve stages on startup.
+          globIgnores: ['art/growth/motion/**/*'],
+          runtimeCaching: [{
+            urlPattern: /\/art\/growth\/motion\/.*\.(?:webp|mp4)$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'growth-motion-v1',
+              cacheableResponse: { statuses: [0, 200] },
+              rangeRequests: true,
+              expiration: {
+                maxEntries: 6,
+                maxAgeSeconds: 60 * 60 * 24 * 90
+              }
+            }
+          }]
         },
         devOptions: {
           enabled: true,

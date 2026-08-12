@@ -8,6 +8,7 @@ import {
   GrowthXpBreakdown,
   HabitatCollection,
   ImprintChoice,
+  resolveGrowthStageAnimationUrl,
   TodayGrowthMissions,
   type GrowthAchievementView,
   type GrowthAffinity,
@@ -107,6 +108,7 @@ export function GrowthPage({
     <CompanionJourney
       companion={companion}
       fallbackArtworkUrl={defaultArtworkUrl}
+      animationAtlasUrl={resolveGrowthStageAnimationUrl(companion.growthNode)}
       onOpenXpHistory={() => setOpenSheet('xp')}
     />
 

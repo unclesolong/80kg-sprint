@@ -1,6 +1,12 @@
 export { AchievementWall, getDefaultGrowthAchievementArtworkUrl, type AchievementWallProps } from './AchievementWall'
 export { CompanionJourney, type CompanionJourneyProps } from './CompanionJourney'
 export { GrowthArtworkStack, type GrowthArtworkStackProps } from './GrowthArtworkStack'
+export { GrowthStageAnimation, type GrowthStageAnimationProps } from './GrowthStageAnimation'
+export {
+  GROWTH_STAGE_ANIMATION_PROFILES,
+  resolveGrowthStageAnimationUrl,
+  type GrowthStageAnimationProfile
+} from './growthStageAnimationManifest'
 export { GrowthJourneyDetails, type GrowthJourneyDetailsProps } from './GrowthJourneyDetails'
 export { GrowthSheet, type GrowthSheetProps } from './GrowthSheet'
 export { GrowthXpBreakdown, type GrowthXpBreakdownProps } from './GrowthXpBreakdown'

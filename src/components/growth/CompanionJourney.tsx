@@ -1,6 +1,7 @@
 import { CircleHelp } from 'lucide-react'
 import { useLayoutEffect, useMemo, useReducer } from 'react'
 import { GrowthArtworkStack } from './GrowthArtworkStack'
+import { GrowthStageAnimation } from './GrowthStageAnimation'
 import type { GrowthArtworkMotion } from './growthArtworkMotion'
 import {
   GROWTH_NODE_DEFINITIONS,
@@ -12,6 +13,7 @@ import {
 export interface CompanionJourneyProps {
   companion: GrowthCompanionView
   fallbackArtworkUrl: string
+  animationAtlasUrl?: string
   onOpenXpHistory?: () => void
 }
 
@@ -19,8 +21,10 @@ const clamp = (value: number, minimum: number, maximum: number) => Math.min(maxi
 
 interface CompanionVisualSnapshot {
   key: string
+  node: GrowthCompanionView['growthNode']
   layers: readonly GrowthArtworkLayer[]
   mainForm: GrowthMainForm
+  animationAtlasUrl?: string
 }
 
 interface CompanionMotionState {
@@ -100,7 +104,7 @@ const companionMotionReducer = (
   return action.xp === clearedState.xp ? clearedState : { ...clearedState, xp: action.xp }
 }
 
-export function CompanionJourney({ companion, fallbackArtworkUrl, onOpenXpHistory }: CompanionJourneyProps) {
+export function CompanionJourney({ companion, fallbackArtworkUrl, animationAtlasUrl, onOpenXpHistory }: CompanionJourneyProps) {
   const current = GROWTH_NODE_DEFINITIONS[companion.growthNode - 1]
   const next = GROWTH_NODE_DEFINITIONS[companion.growthNode]
   const companionName = companion.displayName?.trim() || '潤光'
@@ -123,12 +127,14 @@ export function CompanionJourney({ companion, fallbackArtworkUrl, onOpenXpHistor
     .map((layer) => `${layer.id}:${layer.slot}:${layer.url}`)
     .join('|')
   const visualSnapshot = useMemo<CompanionVisualSnapshot>(() => ({
-    key: `node-${current.node}:${artworkSignature}`,
+    key: `node-${current.node}:${artworkSignature}:${animationAtlasUrl ?? 'poster'}`,
+    node: current.node,
     layers: artworkLayers,
-    mainForm: current.mainForm
+    mainForm: current.mainForm,
+    animationAtlasUrl
   // artworkSignature captures the complete frozen layer snapshot.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [artworkSignature, current.mainForm, current.node])
+  }), [animationAtlasUrl, artworkSignature, current.mainForm, current.node])
   const [motionState, dispatchMotion] = useReducer(companionMotionReducer, {
     current: visualSnapshot,
     motion: 'idle',
@@ -161,15 +167,23 @@ export function CompanionJourney({ companion, fallbackArtworkUrl, onOpenXpHistor
         : <strong className="growth-companion__xp">{companion.xp.toLocaleString('zh-TW')} XP</strong>}
     </header>
 
-    <GrowthArtworkStack
-      layers={motionState.current.layers}
-      previousLayers={motionState.previous?.layers}
-      label={artworkLabel}
-      className="growth-companion__artwork"
-      motion={motionState.motion}
-      motionEventId={motionState.motionEventId}
-      onMotionComplete={(_motion, eventId, result) => dispatchMotion({ type: 'complete', eventId, result })}
-    />
+    {motionState.motion === 'idle' && motionState.current.animationAtlasUrl && motionState.current.layers.length === 1
+      ? <GrowthStageAnimation
+          node={motionState.current.node}
+          atlasUrl={motionState.current.animationAtlasUrl}
+          posterUrl={motionState.current.layers[0].url}
+          label={artworkLabel}
+          className="growth-companion__artwork"
+        />
+      : <GrowthArtworkStack
+          layers={motionState.current.layers}
+          previousLayers={motionState.previous?.layers}
+          label={artworkLabel}
+          className="growth-companion__artwork"
+          motion={motionState.motion}
+          motionEventId={motionState.motionEventId}
+          onMotionComplete={(_motion, eventId, result) => dispatchMotion({ type: 'complete', eventId, result })}
+        />}
 
     <div className="growth-companion__progress">
       <div><strong>第 {current.node}／12 階</strong><span>{progressText}</span></div>

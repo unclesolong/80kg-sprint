@@ -1,0 +1,54 @@
+/* Character anatomy is authored in the atlas. CSS only selects complete frames. */
+.growth-stage-animation__poster,
+.growth-stage-animation__video,
+.growth-stage-animation__frames {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.growth-stage-animation__poster {
+  object-fit: contain;
+  opacity: 1;
+  transition: opacity 180ms ease;
+}
+
+.growth-stage-animation__video {
+  object-fit: contain;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.growth-stage-animation__frames {
+  background-image: var(--growth-stage-atlas);
+  background-repeat: no-repeat;
+  background-position: 0 0;
+  background-size: 400% 200%;
+  opacity: 0;
+  animation: growth-stage-authored-idle var(--growth-stage-duration) step-end var(--growth-stage-delay) infinite;
+}
+
+.growth-stage-animation[data-growth-stage-status="ready"] .growth-stage-animation__poster { opacity: 0; }
+.growth-stage-animation[data-growth-stage-status="ready"] .growth-stage-animation__video { opacity: 1; }
+.growth-stage-animation[data-growth-stage-status="ready"] .growth-stage-animation__frames { opacity: 1; }
+.growth-stage-animation[data-growth-motion-play-state="paused"] .growth-stage-animation__frames { animation-play-state: paused; }
+
+@keyframes growth-stage-authored-idle {
+  0%, 30% { background-position: 0 0; }
+  33.5% { background-position: 33.333% 0; }
+  37% { background-position: 66.667% 0; }
+  40.5% { background-position: 100% 0; }
+  44% { background-position: 0 100%; }
+  47.5% { background-position: 33.333% 100%; }
+  51% { background-position: 66.667% 100%; }
+  54.5% { background-position: 100% 100%; }
+  58%, 100% { background-position: 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .growth-stage-animation__poster { opacity: 1 !important; transition: none !important; }
+  .growth-stage-animation__video { display: none !important; }
+  .growth-stage-animation__frames { display: none !important; animation: none !important; }
+}

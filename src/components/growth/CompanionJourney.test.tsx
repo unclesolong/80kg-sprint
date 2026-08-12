@@ -16,6 +16,7 @@ const companionAt = (growthNode: GrowthNode, xp: number): GrowthCompanionView =>
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+  vi.restoreAllMocks()
 })
 
 describe('CompanionJourney artwork motion', () => {
@@ -107,5 +108,23 @@ describe('CompanionJourney artwork motion', () => {
     rerender(<CompanionJourney companion={companionAt(4, 310)} fallbackArtworkUrl="/art/growth/luminous-stage-04.webp" />)
     expect(screen.getByRole('img').getAttribute('data-growth-motion')).toBe('xp_pulse')
     expect(container.querySelector<HTMLImageElement>('.growth-motion-snapshot--current img')?.src).toContain('luminous-stage-03.webp')
+  })
+
+  it('uses an approved node-authored animation during idle instead of a generic CSS transform', () => {
+    vi.spyOn(window.HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined)
+    vi.spyOn(window.HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined)
+    const { container } = render(<CompanionJourney
+      companion={companionAt(3, 160)}
+      fallbackArtworkUrl="/art/growth/luminous-stage-03.webp"
+      animationAtlasUrl="/art/growth/motion/stage-03/luminous-stage-03-idle-primary-50fps-v1.mp4"
+    />)
+
+    const artwork = screen.getByRole('img')
+    expect(artwork.classList.contains('growth-stage-animation')).toBe(true)
+    expect(artwork.getAttribute('data-growth-stage-node')).toBe('3')
+    expect(container.querySelector<HTMLImageElement>('.growth-stage-animation__poster')?.src)
+      .toContain('luminous-stage-03.webp')
+    expect(container.querySelector<HTMLVideoElement>('.growth-stage-animation__video')?.src)
+      .toContain('luminous-stage-03-idle-primary-50fps-v1.mp4')
   })
 })

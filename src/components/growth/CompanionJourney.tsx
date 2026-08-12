@@ -1,6 +1,7 @@
 import { CircleHelp } from 'lucide-react'
 import { useLayoutEffect, useMemo, useReducer } from 'react'
 import { GrowthArtworkStack } from './GrowthArtworkStack'
+import { GrowthCompanionSpeech } from './GrowthCompanionSpeech'
 import { GrowthStageAnimation } from './GrowthStageAnimation'
 import type { GrowthArtworkMotion } from './growthArtworkMotion'
 import {
@@ -17,6 +18,8 @@ export interface CompanionJourneyProps {
   /** Approved first-frame still that matches the animation's embedded habitat. */
   animationPosterUrl?: string
   onOpenXpHistory?: () => void
+  /** Pauses artwork and clears speech while a modal Growth sheet is open. */
+  paused?: boolean
 }
 
 const clamp = (value: number, minimum: number, maximum: number) => Math.min(maximum, Math.max(minimum, value))
@@ -112,7 +115,8 @@ export function CompanionJourney({
   fallbackArtworkUrl,
   animationAtlasUrl,
   animationPosterUrl,
-  onOpenXpHistory
+  onOpenXpHistory,
+  paused = false
 }: CompanionJourneyProps) {
   const current = GROWTH_NODE_DEFINITIONS[companion.growthNode - 1]
   const next = GROWTH_NODE_DEFINITIONS[companion.growthNode]
@@ -177,23 +181,27 @@ export function CompanionJourney({
         : <strong className="growth-companion__xp">{companion.xp.toLocaleString('zh-TW')} XP</strong>}
     </header>
 
-    {motionState.motion === 'idle' && motionState.current.animationAtlasUrl && motionState.current.layers.length === 1
-      ? <GrowthStageAnimation
-          node={motionState.current.node}
-          atlasUrl={motionState.current.animationAtlasUrl}
-          posterUrl={motionState.current.animationPosterUrl ?? motionState.current.layers[0].url}
-          label={artworkLabel}
-          className="growth-companion__artwork"
-        />
-      : <GrowthArtworkStack
-          layers={motionState.current.layers}
-          previousLayers={motionState.previous?.layers}
-          label={artworkLabel}
-          className="growth-companion__artwork"
-          motion={motionState.motion}
-          motionEventId={motionState.motionEventId}
-          onMotionComplete={(_motion, eventId, result) => dispatchMotion({ type: 'complete', eventId, result })}
-        />}
+    <GrowthCompanionSpeech node={motionState.current.node} companionLabel={companionName} paused={paused}>
+      {motionState.motion === 'idle' && motionState.current.animationAtlasUrl && motionState.current.layers.length === 1
+        ? <GrowthStageAnimation
+            node={motionState.current.node}
+            atlasUrl={motionState.current.animationAtlasUrl}
+            posterUrl={motionState.current.animationPosterUrl ?? motionState.current.layers[0].url}
+            label={artworkLabel}
+            className="growth-companion__artwork"
+            paused={paused}
+          />
+        : <GrowthArtworkStack
+            layers={motionState.current.layers}
+            previousLayers={motionState.previous?.layers}
+            label={artworkLabel}
+            className="growth-companion__artwork"
+            motion={motionState.motion}
+            motionEventId={motionState.motionEventId}
+            motionPaused={paused}
+            onMotionComplete={(_motion, eventId, result) => dispatchMotion({ type: 'complete', eventId, result })}
+          />}
+    </GrowthCompanionSpeech>
 
     <div className="growth-companion__progress">
       <div><strong>第 {current.node}／12 階</strong><span>{progressText}</span></div>

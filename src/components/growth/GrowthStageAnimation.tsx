@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useGrowthMotionEnvironment } from './growthArtworkMotion'
-import { GROWTH_STAGE_ANIMATION_PROFILES } from './growthStageAnimationManifest'
+import {
+  GROWTH_STAGE_ANIMATION_PROFILES,
+  resolveGrowthAmbientEffectSpriteUrl
+} from './growthStageAnimationManifest'
+import { GrowthAmbientStars } from './GrowthAmbientStars'
 import type { GrowthNode } from './types'
 import './growthStageAnimation.css'
 
@@ -29,6 +33,9 @@ export function GrowthStageAnimation({
   const environment = useGrowthMotionEnvironment(paused)
   const profile = GROWTH_STAGE_ANIMATION_PROFILES[node]
   const isVideo = profile?.format === 'video'
+  const hasAmbientStars = profile?.format === 'video'
+    && profile.sceneComposition === 'embedded_habitat'
+    && profile.ambientEffect === 'star_tide_perimeter_v1'
   const [atlasStatus, setAtlasStatus] = useState<AtlasStatus>(() =>
     environment.reducedMotion || !profile ? 'poster' : 'loading'
   )
@@ -106,35 +113,49 @@ export function GrowthStageAnimation({
     data-growth-motion-play-state={running ? 'running' : 'paused'}
     data-growth-reduced-motion={environment.reducedMotion}
   >
-    <img
-      className="growth-stage-animation__poster"
-      src={posterUrl}
-      alt=""
+    <span
+      className="growth-stage-animation__visual"
       aria-hidden="true"
-      loading="eager"
-      decoding="async"
-      draggable={false}
-    />
-    {isVideo && !environment.reducedMotion && atlasStatus !== 'failed' && <video
-      key={atlasUrl}
-      ref={videoRef}
-      className="growth-stage-animation__video"
-      src={atlasUrl}
-      poster={posterUrl}
-      muted
-      loop
-      playsInline
-      autoPlay={playbackAllowed}
-      preload="auto"
-      aria-hidden="true"
-      onLoadedData={() => setAtlasStatus('ready')}
-      onCanPlay={() => setAtlasStatus('ready')}
-      onError={() => setAtlasStatus('failed')}
-    />}
-    {!isVideo && atlasStatus === 'ready' && <span
-      className="growth-stage-animation__frames"
-      style={frameStyle}
-      aria-hidden="true"
-    />}
+      data-growth-stage-node={node}
+      data-growth-stage-status={atlasStatus}
+      data-growth-scene-composition={profile?.format === 'video' ? profile.sceneComposition : 'poster_only'}
+      data-growth-motion-play-state={running ? 'running' : 'paused'}
+      data-growth-reduced-motion={environment.reducedMotion}
+    >
+      <img
+        className="growth-stage-animation__poster"
+        src={posterUrl}
+        alt=""
+        aria-hidden="true"
+        loading="eager"
+        decoding="async"
+        draggable={false}
+      />
+      {isVideo && !environment.reducedMotion && atlasStatus !== 'failed' && <video
+        key={atlasUrl}
+        ref={videoRef}
+        className="growth-stage-animation__video"
+        src={atlasUrl}
+        poster={posterUrl}
+        muted
+        loop
+        playsInline
+        autoPlay={playbackAllowed}
+        preload="auto"
+        aria-hidden="true"
+        onLoadedData={() => setAtlasStatus('ready')}
+        onCanPlay={() => setAtlasStatus('ready')}
+        onError={() => setAtlasStatus('failed')}
+      />}
+      {!isVideo && atlasStatus === 'ready' && <span
+        className="growth-stage-animation__frames"
+        style={frameStyle}
+        aria-hidden="true"
+      />}
+      {hasAmbientStars && atlasStatus !== 'failed' && !environment.reducedMotion && <GrowthAmbientStars
+        node={node}
+        spriteUrl={resolveGrowthAmbientEffectSpriteUrl()}
+      />}
+    </span>
   </figure>
 }

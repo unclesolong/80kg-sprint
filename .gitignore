@@ -3,6 +3,8 @@ dist/
 work/
 outputs/
 .codex-preview/
+tmp/imagegen/
+.pnpm-store/
 .DS_Store
 *.local
 *.log

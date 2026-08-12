@@ -1,9 +1,21 @@
 export { AchievementWall, getDefaultGrowthAchievementArtworkUrl, type AchievementWallProps } from './AchievementWall'
 export { CompanionJourney, type CompanionJourneyProps } from './CompanionJourney'
 export { GrowthArtworkStack, type GrowthArtworkStackProps } from './GrowthArtworkStack'
+export {
+  GROWTH_COMPANION_HITBOXES,
+  GROWTH_COMPANION_REACTIONS,
+  GROWTH_COMPANION_SPEECH_COOLDOWN_MS,
+  GROWTH_COMPANION_SPEECH_VISIBLE_MS,
+  getGrowthCompanionReactionSequence,
+  GrowthCompanionSpeech,
+  type GrowthCompanionHitbox,
+  type GrowthCompanionReaction,
+  type GrowthCompanionSpeechProps
+} from './GrowthCompanionSpeech'
 export { GrowthStageAnimation, type GrowthStageAnimationProps } from './GrowthStageAnimation'
 export {
   GROWTH_STAGE_ANIMATION_PROFILES,
+  resolveGrowthAmbientEffectSpriteUrl,
   resolveGrowthStageAnimationPosterUrl,
   resolveGrowthStageAnimationUrl,
   type GrowthStageAnimationProfile

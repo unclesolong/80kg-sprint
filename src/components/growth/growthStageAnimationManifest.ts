@@ -19,6 +19,7 @@ export interface GrowthStageVideoAnimationProfile extends GrowthStageAnimationPr
   /** The runtime already contains this habitat; the player must never add a second background layer. */
   sceneComposition: 'embedded_habitat'
   habitatAssetPath: string
+  ambientEffect?: 'star_tide_perimeter_v1'
 }
 
 export type GrowthStageAnimationProfile =
@@ -34,7 +35,8 @@ export const GROWTH_STAGE_ANIMATION_PROFILES: Readonly<Partial<Record<GrowthNode
     frameRate: 50,
     posterAssetPath: 'art/growth/motion/stage-02/luminous-stage-02-idle-primary-habitat-poster-v1.webp',
     sceneComposition: 'embedded_habitat',
-    habitatAssetPath: 'art/growth/luminous-habitat-star-tide.webp'
+    habitatAssetPath: 'art/growth/luminous-habitat-star-tide.webp',
+    ambientEffect: 'star_tide_perimeter_v1'
   },
   3: {
     node: 3,
@@ -43,7 +45,8 @@ export const GROWTH_STAGE_ANIMATION_PROFILES: Readonly<Partial<Record<GrowthNode
     frameRate: 50,
     posterAssetPath: 'art/growth/motion/stage-03/luminous-stage-03-idle-primary-habitat-poster-v1.webp',
     sceneComposition: 'embedded_habitat',
-    habitatAssetPath: 'art/growth/luminous-habitat-star-tide.webp'
+    habitatAssetPath: 'art/growth/luminous-habitat-star-tide.webp',
+    ambientEffect: 'star_tide_perimeter_v1'
   },
   4: {
     node: 4,
@@ -52,7 +55,8 @@ export const GROWTH_STAGE_ANIMATION_PROFILES: Readonly<Partial<Record<GrowthNode
     frameRate: 50,
     posterAssetPath: 'art/growth/motion/stage-04/luminous-stage-04-idle-primary-habitat-poster-v1.webp',
     sceneComposition: 'embedded_habitat',
-    habitatAssetPath: 'art/growth/luminous-habitat-star-tide.webp'
+    habitatAssetPath: 'art/growth/luminous-habitat-star-tide.webp',
+    ambientEffect: 'star_tide_perimeter_v1'
   }
 }
 
@@ -75,3 +79,7 @@ export const resolveGrowthStageAnimationPosterUrl = (
     ? `${withTrailingSlash(baseUrl)}${profile.posterAssetPath}`
     : undefined
 }
+
+export const resolveGrowthAmbientEffectSpriteUrl = (
+  baseUrl = import.meta.env.BASE_URL
+): string => `${withTrailingSlash(baseUrl)}art/growth/effects/luminous-star-particles-v1.webp`

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   GROWTH_STAGE_ANIMATION_PROFILES,
+  resolveGrowthAmbientEffectSpriteUrl,
   resolveGrowthStageAnimationPosterUrl,
   resolveGrowthStageAnimationUrl
 } from './growthStageAnimationManifest'
@@ -15,19 +16,22 @@ describe('growth stage animation manifest', () => {
       format: 'video',
       frameRate: 50,
       sceneComposition: 'embedded_habitat',
-      habitatAssetPath: 'art/growth/luminous-habitat-star-tide.webp'
+      habitatAssetPath: 'art/growth/luminous-habitat-star-tide.webp',
+      ambientEffect: 'star_tide_perimeter_v1'
     })
     expect(GROWTH_STAGE_ANIMATION_PROFILES[3]).toMatchObject({
       format: 'video',
       frameRate: 50,
       sceneComposition: 'embedded_habitat',
-      habitatAssetPath: 'art/growth/luminous-habitat-star-tide.webp'
+      habitatAssetPath: 'art/growth/luminous-habitat-star-tide.webp',
+      ambientEffect: 'star_tide_perimeter_v1'
     })
     expect(GROWTH_STAGE_ANIMATION_PROFILES[4]).toMatchObject({
       format: 'video',
       frameRate: 50,
       sceneComposition: 'embedded_habitat',
-      habitatAssetPath: 'art/growth/luminous-habitat-star-tide.webp'
+      habitatAssetPath: 'art/growth/luminous-habitat-star-tide.webp',
+      ambientEffect: 'star_tide_perimeter_v1'
     })
   })
 
@@ -59,6 +63,12 @@ describe('growth stage animation manifest', () => {
     )
     expect(resolveGrowthStageAnimationPosterUrl(4, '/80kg-sprint/')).toBe(
       '/80kg-sprint/art/growth/motion/stage-04/luminous-stage-04-idle-primary-habitat-poster-v1.webp'
+    )
+  })
+
+  it('resolves the authored ambient sprite under the application base path', () => {
+    expect(resolveGrowthAmbientEffectSpriteUrl('/80kg-sprint')).toBe(
+      '/80kg-sprint/art/growth/effects/luminous-star-particles-v1.webp'
     )
   })
 })

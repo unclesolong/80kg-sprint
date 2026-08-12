@@ -20,6 +20,41 @@ afterEach(() => {
 })
 
 describe('CompanionJourney artwork motion', () => {
+  it('keeps the speech button outside the image role for every static stage', () => {
+    const { rerender } = render(<CompanionJourney
+      companion={companionAt(1, 0)}
+      fallbackArtworkUrl="/art/growth/luminous-stage-01.webp"
+    />)
+
+    for (let node = 1 as GrowthNode; node <= 12; node = (node + 1) as GrowthNode) {
+      rerender(<CompanionJourney
+        companion={companionAt(node, node * 300)}
+        fallbackArtworkUrl={`/art/growth/luminous-stage-${String(node).padStart(2, '0')}.webp`}
+      />)
+      const button = screen.getByRole('button', { name: '和潤光互動' })
+      expect(button.closest('[role="img"]')).toBeNull()
+      expect(screen.getByRole('status').textContent).toBe('')
+    }
+  })
+
+  it('clears speech and pauses artwork while a Growth sheet is open', () => {
+    const { container, rerender } = render(<CompanionJourney
+      companion={companionAt(2, 80)}
+      fallbackArtworkUrl="/art/growth/luminous-stage-02.webp"
+    />)
+    fireEvent.click(screen.getByRole('button', { name: '和潤光互動' }))
+    expect(container.querySelector('.growth-companion-speech__bubble')).not.toBeNull()
+
+    rerender(<CompanionJourney
+      companion={companionAt(2, 80)}
+      fallbackArtworkUrl="/art/growth/luminous-stage-02.webp"
+      paused
+    />)
+    expect(container.querySelector('.growth-companion-speech__bubble')).toBeNull()
+    expect((screen.getByRole('button', { name: '和潤光互動' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByRole('img').getAttribute('data-growth-motion-play-state')).toBe('paused')
+  })
+
   it('transitions two complete stage images through the core and removes the old image', () => {
     vi.useFakeTimers()
     const { container, rerender } = render(<CompanionJourney

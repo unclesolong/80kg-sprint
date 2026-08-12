@@ -54,6 +54,7 @@ describe('GrowthStageAnimation', () => {
     expect(container.querySelector<HTMLImageElement>('.growth-stage-animation__poster')?.src).toContain('/poster-05.webp')
     expect(container.querySelector('.growth-stage-animation__frames')).toBeNull()
     expect(container.querySelector('.growth-stage-animation__video')).toBeNull()
+    expect(container.querySelector('.growth-ambient-stars')).toBeNull()
     expect(createdImages).toHaveLength(0)
   })
 
@@ -76,11 +77,16 @@ describe('GrowthStageAnimation', () => {
     expect(video?.playsInline).toBe(true)
     expect(surface.getAttribute('data-growth-scene-composition')).toBe('embedded_habitat')
     expect(container.querySelectorAll('.growth-stage-animation__habitat')).toHaveLength(0)
+    expect(container.querySelectorAll('.growth-ambient-stars__particle')).toHaveLength(8)
+    expect(container.querySelector('.growth-ambient-stars')?.getAttribute('aria-hidden')).toBe('true')
+    expect(container.querySelector('.growth-ambient-stars')?.getAttribute('role')).toBeNull()
+    expect(container.querySelector('.growth-ambient-stars')?.getAttribute('tabindex')).toBeNull()
     expect(createdImages).toHaveLength(0)
 
     fireEvent.canPlay(video!)
     await waitFor(() => expect(surface.getAttribute('data-growth-stage-status')).toBe('ready'))
     expect(surface.getAttribute('data-growth-motion-play-state')).toBe('running')
+    expect(container.querySelectorAll('.growth-ambient-stars__particle')).toHaveLength(8)
     expect(play).toHaveBeenCalled()
 
     pause.mockClear()
@@ -89,6 +95,7 @@ describe('GrowthStageAnimation', () => {
       {} as IntersectionObserver
     ))
     expect(surface.getAttribute('data-growth-motion-play-state')).toBe('paused')
+    expect(container.querySelector('.growth-ambient-stars')).not.toBeNull()
     expect(pause).toHaveBeenCalled()
 
     act(() => intersectionCallback?.(
@@ -99,6 +106,7 @@ describe('GrowthStageAnimation', () => {
     pause.mockClear()
     act(() => document.dispatchEvent(new Event('visibilitychange')))
     expect(surface.getAttribute('data-growth-motion-play-state')).toBe('paused')
+    expect(container.querySelector('.growth-ambient-stars')).not.toBeNull()
     expect(pause).toHaveBeenCalled()
 
     Object.defineProperty(document, 'hidden', { configurable: true, value: false })
@@ -112,6 +120,7 @@ describe('GrowthStageAnimation', () => {
       paused
     />)
     expect(surface.getAttribute('data-growth-motion-play-state')).toBe('paused')
+    expect(container.querySelector('.growth-ambient-stars')).not.toBeNull()
     expect(pause).toHaveBeenCalled()
   })
 
@@ -126,6 +135,7 @@ describe('GrowthStageAnimation', () => {
     fireEvent.error(container.querySelector<HTMLVideoElement>('.growth-stage-animation__video')!)
     expect(screen.getByRole('img', { name: 'Luminous Lv2' }).getAttribute('data-growth-stage-status')).toBe('failed')
     expect(container.querySelector('.growth-stage-animation__video')).toBeNull()
+    expect(container.querySelector('.growth-ambient-stars')).toBeNull()
     expect(container.querySelector<HTMLImageElement>('.growth-stage-animation__poster')?.src).toContain('/poster-02.webp')
   })
 
@@ -146,6 +156,7 @@ describe('GrowthStageAnimation', () => {
     expect(screen.getByRole('img', { name: 'Luminous Lv2' }).getAttribute('data-growth-stage-status')).toBe('poster')
     expect(container.querySelector('.growth-stage-animation__frames')).toBeNull()
     expect(container.querySelector('.growth-stage-animation__video')).toBeNull()
+    expect(container.querySelector('.growth-ambient-stars')).toBeNull()
     expect(createdImages).toHaveLength(0)
   })
 })

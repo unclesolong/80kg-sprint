@@ -112,6 +112,7 @@ export function GrowthPage({
       animationAtlasUrl={resolveGrowthStageAnimationUrl(companion.growthNode)}
       animationPosterUrl={resolveGrowthStageAnimationPosterUrl(companion.growthNode)}
       onOpenXpHistory={() => setOpenSheet('xp')}
+      paused={openSheet != null}
     />
 
     {imprintChoice && <aside className="growth-imprint-alert standard-card">

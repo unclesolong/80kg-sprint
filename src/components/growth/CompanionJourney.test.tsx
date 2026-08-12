@@ -117,13 +117,14 @@ describe('CompanionJourney artwork motion', () => {
       companion={companionAt(3, 160)}
       fallbackArtworkUrl="/art/growth/luminous-stage-03.webp"
       animationAtlasUrl="/art/growth/motion/stage-03/luminous-stage-03-idle-primary-50fps-v1.mp4"
+      animationPosterUrl="/art/growth/motion/stage-03/luminous-stage-03-idle-primary-habitat-poster-v1.webp"
     />)
 
     const artwork = screen.getByRole('img')
     expect(artwork.classList.contains('growth-stage-animation')).toBe(true)
     expect(artwork.getAttribute('data-growth-stage-node')).toBe('3')
     expect(container.querySelector<HTMLImageElement>('.growth-stage-animation__poster')?.src)
-      .toContain('luminous-stage-03.webp')
+      .toContain('luminous-stage-03-idle-primary-habitat-poster-v1.webp')
     expect(container.querySelector<HTMLVideoElement>('.growth-stage-animation__video')?.src)
       .toContain('luminous-stage-03-idle-primary-50fps-v1.mp4')
   })

@@ -42,8 +42,12 @@ export default defineConfig(({ command }) => {
           navigateFallback: 'index.html',
           globPatterns: ['**/*.{js,css,html,ico,png,webp,svg,webmanifest}'],
           additionalManifestEntries: [
+            { url: 'art/growth/motion/stage-02/luminous-stage-02-idle-primary-habitat-poster-v1.webp', revision: 'v1' },
             { url: 'art/growth/motion/stage-02/luminous-stage-02-idle-primary-50fps-v1.mp4', revision: 'v1' },
-            { url: 'art/growth/motion/stage-03/luminous-stage-03-idle-primary-50fps-v1.mp4', revision: 'v1' }
+            { url: 'art/growth/motion/stage-03/luminous-stage-03-idle-primary-habitat-poster-v1.webp', revision: 'v1' },
+            { url: 'art/growth/motion/stage-03/luminous-stage-03-idle-primary-50fps-v1.mp4', revision: 'v1' },
+            { url: 'art/growth/motion/stage-04/luminous-stage-04-idle-primary-habitat-poster-v1.webp', revision: 'v1' },
+            { url: 'art/growth/motion/stage-04/luminous-stage-04-idle-primary-50fps-v1.mp4', revision: 'v1' }
           ],
           // Authored motion atlases are loaded only for the current stage. The
           // still posters remain precached, while recently viewed motion stays

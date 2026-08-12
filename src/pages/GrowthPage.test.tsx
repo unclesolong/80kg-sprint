@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   GrowthAchievementView,
   GrowthCompanionView,
@@ -11,7 +11,15 @@ import type {
 } from '../components/growth'
 import { GrowthPage } from './GrowthPage'
 
-afterEach(cleanup)
+beforeEach(() => {
+  vi.spyOn(window.HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined)
+  vi.spyOn(window.HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined)
+})
+
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+})
 
 const companion: GrowthCompanionView = {
   displayName: '潤光',
@@ -146,6 +154,29 @@ const xpBreakdown: GrowthXpBreakdownView = {
 }
 
 describe('GrowthPage', () => {
+  it('shows the approved star-tide habitat in the main companion player', () => {
+    const stageThreeCompanion: GrowthCompanionView = {
+      ...companion,
+      xp: 160,
+      growthNode: 3
+    }
+    const { container } = render(<GrowthPage
+      companion={stageThreeCompanion}
+      missions={missions}
+      xpBreakdown={{ ...xpBreakdown, displayedXp: 160 }}
+      achievements={achievements}
+      habitat={habitat}
+    />)
+
+    const player = screen.getByRole('img', { name: /潤光目前型態/ })
+    expect(player.getAttribute('data-growth-scene-composition')).toBe('embedded_habitat')
+    expect(container.querySelector<HTMLImageElement>('.growth-stage-animation__poster')?.src)
+      .toContain('luminous-stage-03-idle-primary-habitat-poster-v1.webp')
+    expect(container.querySelector<HTMLVideoElement>('.growth-stage-animation__video')?.src)
+      .toContain('luminous-stage-03-idle-primary-50fps-v1.mp4')
+    expect(container.querySelectorAll('.growth-stage-animation__habitat')).toHaveLength(0)
+  })
+
   it('keeps the hero concise and opens the complete 12-stage journey in a sheet', async () => {
     const user = userEvent.setup()
     const { container } = render(<GrowthPage
@@ -167,7 +198,10 @@ describe('GrowthPage', () => {
     expect(screen.getByText('Lv4 · 潤團・萌翼')).toBeTruthy()
     expect(screen.getByRole('img', { name: '潤光目前型態：潤團・萌翼' })).toBeTruthy()
     const fallbackImage = container.querySelector<HTMLImageElement>('.growth-companion__artwork img')
-    expect(fallbackImage?.src).toContain('art/growth/luminous-stage-04.webp')
+    expect(fallbackImage?.src).toContain('luminous-stage-04-idle-primary-habitat-poster-v1.webp')
+    expect(container.querySelector<HTMLVideoElement>('.growth-stage-animation__video')?.src)
+      .toContain('luminous-stage-04-idle-primary-50fps-v1.mp4')
+    expect(container.querySelectorAll('.growth-stage-animation__habitat')).toHaveLength(0)
     expect(screen.queryAllByText('浮珠')).toHaveLength(0)
 
     await user.click(screen.getByRole('tab', { name: /旅程/ }))

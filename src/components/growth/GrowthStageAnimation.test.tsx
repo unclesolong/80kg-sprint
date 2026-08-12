@@ -43,15 +43,15 @@ afterEach(() => {
 describe('GrowthStageAnimation', () => {
   it('keeps unapproved stages on the static poster without loading an animation asset', () => {
     const { container } = render(<GrowthStageAnimation
-      node={4}
-      atlasUrl="/motion-04.webp"
-      posterUrl="/poster-04.webp"
-      label="Luminous Lv4"
+      node={5}
+      atlasUrl="/motion-05.webp"
+      posterUrl="/poster-05.webp"
+      label="Luminous Lv5"
     />)
 
-    const surface = screen.getByRole('img', { name: 'Luminous Lv4' })
+    const surface = screen.getByRole('img', { name: 'Luminous Lv5' })
     expect(surface.getAttribute('data-growth-stage-status')).toBe('poster')
-    expect(container.querySelector<HTMLImageElement>('.growth-stage-animation__poster')?.src).toContain('/poster-04.webp')
+    expect(container.querySelector<HTMLImageElement>('.growth-stage-animation__poster')?.src).toContain('/poster-05.webp')
     expect(container.querySelector('.growth-stage-animation__frames')).toBeNull()
     expect(container.querySelector('.growth-stage-animation__video')).toBeNull()
     expect(createdImages).toHaveLength(0)
@@ -74,6 +74,8 @@ describe('GrowthStageAnimation', () => {
     expect(video?.muted).toBe(true)
     expect(video?.loop).toBe(true)
     expect(video?.playsInline).toBe(true)
+    expect(surface.getAttribute('data-growth-scene-composition')).toBe('embedded_habitat')
+    expect(container.querySelectorAll('.growth-stage-animation__habitat')).toHaveLength(0)
     expect(createdImages).toHaveLength(0)
 
     fireEvent.canPlay(video!)

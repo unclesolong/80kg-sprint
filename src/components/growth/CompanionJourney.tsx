@@ -14,6 +14,8 @@ export interface CompanionJourneyProps {
   companion: GrowthCompanionView
   fallbackArtworkUrl: string
   animationAtlasUrl?: string
+  /** Approved first-frame still that matches the animation's embedded habitat. */
+  animationPosterUrl?: string
   onOpenXpHistory?: () => void
 }
 
@@ -25,6 +27,7 @@ interface CompanionVisualSnapshot {
   layers: readonly GrowthArtworkLayer[]
   mainForm: GrowthMainForm
   animationAtlasUrl?: string
+  animationPosterUrl?: string
 }
 
 interface CompanionMotionState {
@@ -104,7 +107,13 @@ const companionMotionReducer = (
   return action.xp === clearedState.xp ? clearedState : { ...clearedState, xp: action.xp }
 }
 
-export function CompanionJourney({ companion, fallbackArtworkUrl, animationAtlasUrl, onOpenXpHistory }: CompanionJourneyProps) {
+export function CompanionJourney({
+  companion,
+  fallbackArtworkUrl,
+  animationAtlasUrl,
+  animationPosterUrl,
+  onOpenXpHistory
+}: CompanionJourneyProps) {
   const current = GROWTH_NODE_DEFINITIONS[companion.growthNode - 1]
   const next = GROWTH_NODE_DEFINITIONS[companion.growthNode]
   const companionName = companion.displayName?.trim() || '潤光'
@@ -127,14 +136,15 @@ export function CompanionJourney({ companion, fallbackArtworkUrl, animationAtlas
     .map((layer) => `${layer.id}:${layer.slot}:${layer.url}`)
     .join('|')
   const visualSnapshot = useMemo<CompanionVisualSnapshot>(() => ({
-    key: `node-${current.node}:${artworkSignature}:${animationAtlasUrl ?? 'poster'}`,
+    key: `node-${current.node}:${artworkSignature}:${animationAtlasUrl ?? 'poster'}:${animationPosterUrl ?? 'studio'}`,
     node: current.node,
     layers: artworkLayers,
     mainForm: current.mainForm,
-    animationAtlasUrl
+    animationAtlasUrl,
+    animationPosterUrl
   // artworkSignature captures the complete frozen layer snapshot.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [animationAtlasUrl, artworkSignature, current.mainForm, current.node])
+  }), [animationAtlasUrl, animationPosterUrl, artworkSignature, current.mainForm, current.node])
   const [motionState, dispatchMotion] = useReducer(companionMotionReducer, {
     current: visualSnapshot,
     motion: 'idle',
@@ -171,7 +181,7 @@ export function CompanionJourney({ companion, fallbackArtworkUrl, animationAtlas
       ? <GrowthStageAnimation
           node={motionState.current.node}
           atlasUrl={motionState.current.animationAtlasUrl}
-          posterUrl={motionState.current.layers[0].url}
+          posterUrl={motionState.current.animationPosterUrl ?? motionState.current.layers[0].url}
           label={artworkLabel}
           className="growth-companion__artwork"
         />

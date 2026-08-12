@@ -1,4 +1,9 @@
 /* Character anatomy is authored in the atlas. CSS only selects complete frames. */
+.growth-stage-animation[data-growth-scene-composition="embedded_habitat"] {
+  min-height: 0;
+  aspect-ratio: 16 / 9;
+}
+
 .growth-stage-animation__poster,
 .growth-stage-animation__video,
 .growth-stage-animation__frames {
@@ -19,6 +24,12 @@
   object-fit: contain;
   opacity: 0;
   transition: opacity 180ms ease;
+}
+
+/* Approved video and poster already contain the habitat. Full-bleed sizing must not add another layer. */
+.growth-stage-animation[data-growth-scene-composition="embedded_habitat"] .growth-stage-animation__poster,
+.growth-stage-animation[data-growth-scene-composition="embedded_habitat"] .growth-stage-animation__video {
+  object-fit: cover;
 }
 
 .growth-stage-animation__frames {

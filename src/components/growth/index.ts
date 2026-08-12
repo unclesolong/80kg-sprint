@@ -4,6 +4,7 @@ export { GrowthArtworkStack, type GrowthArtworkStackProps } from './GrowthArtwor
 export { GrowthStageAnimation, type GrowthStageAnimationProps } from './GrowthStageAnimation'
 export {
   GROWTH_STAGE_ANIMATION_PROFILES,
+  resolveGrowthStageAnimationPosterUrl,
   resolveGrowthStageAnimationUrl,
   type GrowthStageAnimationProfile
 } from './growthStageAnimationManifest'

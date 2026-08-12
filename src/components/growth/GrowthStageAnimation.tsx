@@ -102,6 +102,7 @@ export function GrowthStageAnimation({
     aria-label={label}
     data-growth-stage-node={node}
     data-growth-stage-status={atlasStatus}
+    data-growth-scene-composition={profile?.format === 'video' ? profile.sceneComposition : 'poster_only'}
     data-growth-motion-play-state={running ? 'running' : 'paused'}
     data-growth-reduced-motion={environment.reducedMotion}
   >

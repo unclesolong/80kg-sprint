@@ -64,7 +64,7 @@
   will-change: transform, opacity;
 }
 
-.growth-ambient-stars__particle:nth-child(even) {
+.growth-ambient-stars__particle[data-growth-ambient-tone="blue"] {
   background-position: right center;
 }
 
@@ -104,7 +104,7 @@
 
 @keyframes growth-ambient-star-drift {
   0%, 100% {
-    opacity: .08;
+    opacity: var(--growth-ambient-base-opacity);
     transform: translate3d(-50%, -50%, 0) rotate(0deg);
   }
   36% {

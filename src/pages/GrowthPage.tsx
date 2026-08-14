@@ -9,6 +9,7 @@ import {
   HabitatCollection,
   ImprintChoice,
   resolveGrowthStageAnimationPosterUrl,
+  resolveGrowthStageSecondaryAnimationUrl,
   resolveGrowthStageAnimationUrl,
   TodayGrowthMissions,
   type GrowthAchievementView,
@@ -110,6 +111,7 @@ export function GrowthPage({
       companion={companion}
       fallbackArtworkUrl={defaultArtworkUrl}
       animationAtlasUrl={resolveGrowthStageAnimationUrl(companion.growthNode)}
+      animationSecondaryUrl={resolveGrowthStageSecondaryAnimationUrl(companion.growthNode)}
       animationPosterUrl={resolveGrowthStageAnimationPosterUrl(companion.growthNode)}
       onOpenXpHistory={() => setOpenSheet('xp')}
       paused={openSheet != null}

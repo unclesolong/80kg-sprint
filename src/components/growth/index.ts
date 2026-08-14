@@ -17,6 +17,7 @@ export {
   GROWTH_STAGE_ANIMATION_PROFILES,
   resolveGrowthAmbientEffectSpriteUrl,
   resolveGrowthStageAnimationPosterUrl,
+  resolveGrowthStageSecondaryAnimationUrl,
   resolveGrowthStageAnimationUrl,
   type GrowthStageAnimationProfile
 } from './growthStageAnimationManifest'

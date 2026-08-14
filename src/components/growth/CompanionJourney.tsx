@@ -15,6 +15,8 @@ export interface CompanionJourneyProps {
   companion: GrowthCompanionView
   fallbackArtworkUrl: string
   animationAtlasUrl?: string
+  /** Optional second authored action for this stage. */
+  animationSecondaryUrl?: string
   /** Approved first-frame still that matches the animation's embedded habitat. */
   animationPosterUrl?: string
   onOpenXpHistory?: () => void
@@ -30,6 +32,7 @@ interface CompanionVisualSnapshot {
   layers: readonly GrowthArtworkLayer[]
   mainForm: GrowthMainForm
   animationAtlasUrl?: string
+  animationSecondaryUrl?: string
   animationPosterUrl?: string
 }
 
@@ -114,6 +117,7 @@ export function CompanionJourney({
   companion,
   fallbackArtworkUrl,
   animationAtlasUrl,
+  animationSecondaryUrl,
   animationPosterUrl,
   onOpenXpHistory,
   paused = false
@@ -140,15 +144,16 @@ export function CompanionJourney({
     .map((layer) => `${layer.id}:${layer.slot}:${layer.url}`)
     .join('|')
   const visualSnapshot = useMemo<CompanionVisualSnapshot>(() => ({
-    key: `node-${current.node}:${artworkSignature}:${animationAtlasUrl ?? 'poster'}:${animationPosterUrl ?? 'studio'}`,
+    key: `node-${current.node}:${artworkSignature}:${animationAtlasUrl ?? 'poster'}:${animationSecondaryUrl ?? 'no-secondary'}:${animationPosterUrl ?? 'studio'}`,
     node: current.node,
     layers: artworkLayers,
     mainForm: current.mainForm,
     animationAtlasUrl,
+    animationSecondaryUrl,
     animationPosterUrl
   // artworkSignature captures the complete frozen layer snapshot.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [animationAtlasUrl, animationPosterUrl, artworkSignature, current.mainForm, current.node])
+  }), [animationAtlasUrl, animationPosterUrl, animationSecondaryUrl, artworkSignature, current.mainForm, current.node])
   const [motionState, dispatchMotion] = useReducer(companionMotionReducer, {
     current: visualSnapshot,
     motion: 'idle',
@@ -186,6 +191,7 @@ export function CompanionJourney({
         ? <GrowthStageAnimation
             node={motionState.current.node}
             atlasUrl={motionState.current.animationAtlasUrl}
+            secondaryAtlasUrl={motionState.current.animationSecondaryUrl}
             posterUrl={motionState.current.animationPosterUrl ?? motionState.current.layers[0].url}
             label={artworkLabel}
             className="growth-companion__artwork"

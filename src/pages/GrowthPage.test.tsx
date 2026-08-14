@@ -177,6 +177,48 @@ describe('GrowthPage', () => {
     expect(container.querySelectorAll('.growth-stage-animation__habitat')).toHaveLength(0)
   })
 
+  it('resolves the approved stage-six runtime through the main player wiring', () => {
+    const stageSixCompanion: GrowthCompanionView = {
+      ...companion,
+      xp: 640,
+      growthNode: 6
+    }
+    const { container } = render(<GrowthPage
+      companion={stageSixCompanion}
+      missions={missions}
+      xpBreakdown={{ ...xpBreakdown, displayedXp: 640 }}
+      achievements={achievements}
+      habitat={habitat}
+    />)
+
+    expect(container.querySelector<HTMLImageElement>('.growth-stage-animation__poster')?.src)
+      .toContain('luminous-stage-06-idle-primary-habitat-poster-v3.webp')
+    expect(container.querySelector<HTMLVideoElement>('.growth-stage-animation__video')?.src)
+      .toContain('luminous-stage-06-idle-primary-50fps-v3.mp4')
+    expect(container.querySelectorAll('.growth-ambient-stars__particle')).toHaveLength(14)
+  })
+
+  it('resolves the approved stage-five runtime through the main player wiring', () => {
+    const stageFiveCompanion: GrowthCompanionView = {
+      ...companion,
+      xp: 460,
+      growthNode: 5
+    }
+    const { container } = render(<GrowthPage
+      companion={stageFiveCompanion}
+      missions={missions}
+      xpBreakdown={{ ...xpBreakdown, displayedXp: 460 }}
+      achievements={achievements}
+      habitat={habitat}
+    />)
+
+    expect(container.querySelector<HTMLImageElement>('.growth-stage-animation__poster')?.src)
+      .toContain('luminous-stage-05-idle-primary-habitat-poster-v4.webp')
+    expect(container.querySelector<HTMLVideoElement>('.growth-stage-animation__video')?.src)
+      .toContain('luminous-stage-05-idle-primary-50fps-v4.mp4')
+    expect(container.querySelectorAll('.growth-ambient-stars__particle')).toHaveLength(14)
+  })
+
   it('keeps the hero concise and opens the complete 12-stage journey in a sheet', async () => {
     const user = userEvent.setup()
     const { container } = render(<GrowthPage
